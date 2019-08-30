@@ -8,7 +8,7 @@ TENANTGROUP_ACTIONS = """
     <i class="fa fa-history"></i>
 </a>
 {% if perms.tenancy.change_tenantgroup %}
-    <a href="{% url 'tenancy:tenantgroup_edit' slug=record.slug %}?return_url={{ request.path }}" class="btn btn-xs btn-warning"><i class="glyphicon glyphicon-pencil" aria-hidden="true"></i></a>
+    <a href="{% url 'tenancy:tenantgroup_edit' slug=record.slug %}" class="btn btn-xs btn-warning"><i class="glyphicon glyphicon-pencil" aria-hidden="true"></i></a>
 {% endif %}
 """
 
@@ -25,23 +25,27 @@ COL_TENANT = """
 # Tenant groups
 #
 
+
 class TenantGroupTable(BaseTable):
     pk = ToggleColumn()
-    name = tables.LinkColumn(verbose_name='Name')
-    tenant_count = tables.Column(verbose_name='Tenants')
-    slug = tables.Column(verbose_name='Slug')
+    name = tables.LinkColumn(verbose_name="Name")
+    tenant_count = tables.Column(verbose_name="Tenants")
+    slug = tables.Column(verbose_name="Slug")
     actions = tables.TemplateColumn(
-        template_code=TENANTGROUP_ACTIONS, attrs={'td': {'class': 'text-right noprint'}}, verbose_name=''
+        template_code=TENANTGROUP_ACTIONS,
+        attrs={"td": {"class": "text-right"}},
+        verbose_name="",
     )
 
     class Meta(BaseTable.Meta):
         model = TenantGroup
-        fields = ('pk', 'name', 'tenant_count', 'slug', 'actions')
+        fields = ("pk", "name", "tenant_count", "slug", "actions")
 
 
 #
 # Tenants
 #
+
 
 class TenantTable(BaseTable):
     pk = ToggleColumn()
@@ -49,4 +53,4 @@ class TenantTable(BaseTable):
 
     class Meta(BaseTable.Meta):
         model = Tenant
-        fields = ('pk', 'name', 'group', 'description')
+        fields = ("pk", "name", "group", "description")

@@ -6,26 +6,28 @@ class BaseTable(tables.Table):
     """
     Default table for object lists
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Set default empty_text if none was provided
         if self.empty_text is None:
-            self.empty_text = 'No {} found'.format(self._meta.model._meta.verbose_name_plural)
+            self.empty_text = "No {} found".format(
+                self._meta.model._meta.verbose_name_plural
+            )
 
     class Meta:
-        attrs = {
-            'class': 'table table-hover table-headings',
-        }
+        attrs = {"class": "table table-hover table-headings"}
 
 
 class ToggleColumn(tables.CheckBoxColumn):
     """
     Extend CheckBoxColumn to add a "toggle all" checkbox in the column header.
     """
+
     def __init__(self, *args, **kwargs):
-        default = kwargs.pop('default', '')
-        visible = kwargs.pop('visible', False)
+        default = kwargs.pop("default", "")
+        visible = kwargs.pop("visible", False)
         super().__init__(*args, default=default, visible=visible, **kwargs)
 
     @property
@@ -38,6 +40,7 @@ class BooleanColumn(tables.Column):
     Custom implementation of BooleanColumn to render a nicely-formatted checkmark or X icon instead of a Unicode
     character.
     """
+
     def render(self, value):
         if value is True:
             rendered = '<span class="text-success"><i class="fa fa-check"></i></span>'
@@ -52,7 +55,10 @@ class ColorColumn(tables.Column):
     """
     Display a color (#RRGGBB).
     """
+
     def render(self, value):
         return mark_safe(
-            '<span class="label color-block" style="background-color: #{}">&nbsp;</span>'.format(value)
+            '<span class="label color-block" style="background-color: #{}">&nbsp;</span>'.format(
+                value
+            )
         )

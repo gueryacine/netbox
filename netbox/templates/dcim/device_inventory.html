@@ -37,7 +37,7 @@
                             <th>Name</th>
                             <th></th>
                             <th>Manufacturer</th>
-                            <th>Part ID</th>
+                            <th>Part Number</th>
                             <th>Serial Number</th>
                             <th>Asset Tag</th>
                             <th>Description</th>
@@ -53,7 +53,7 @@
                     </tbody>
                 </table>
                 {% if perms.dcim.add_inventoryitem %}
-                    <div class="panel-footer text-right noprint">
+                    <div class="panel-footer text-right">
                         <a href="{% url 'dcim:inventoryitem_add' device=device.pk %}" class="btn btn-primary btn-xs">
                             <span class="fa fa-plus" aria-hidden="true"></span> Add Inventory Item
                         </a>

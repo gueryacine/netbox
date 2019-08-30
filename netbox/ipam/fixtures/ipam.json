@@ -40,6 +40,7 @@
         "site": 1,
         "vrf": null,
         "vlan": null,
+        "port": null,
         "status": 1,
         "role": 1,
         "description": ""
@@ -56,6 +57,7 @@
         "site": 1,
         "vrf": null,
         "vlan": null,
+        "port": null,
         "status": 1,
         "role": 1,
         "description": ""
@@ -323,6 +325,19 @@
         "vid": 999,
         "name": "TEST",
         "status": 1,
+        "role": 1
+    }
+},
+{
+    "model": "ipam.PortTemplate",
+    "pk": 1,
+    "fields": {
+        "created": "2016-06-23",
+        "last_updated": "2016-06-23T03:19:56.521Z",
+        "site": 1,
+        "name": "TEST",
+        "status": 1,
+        "types": 1,
         "role": 1
     }
 }

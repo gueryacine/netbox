@@ -7,9 +7,10 @@ from netaddr import IPNetwork, AddrFormatError
 # Form fields
 #
 
+
 class IPFormField(forms.Field):
     default_error_messages = {
-        'invalid': "Enter a valid IPv4 or IPv6 address (with CIDR mask).",
+        "invalid": "Enter a valid IPv4 or IPv6 address (with CIDR mask)."
     }
 
     def to_python(self, value):
@@ -20,8 +21,8 @@ class IPFormField(forms.Field):
             return value
 
         # Ensure that a subnet mask has been specified. This prevents IPs from defaulting to a /32 or /128.
-        if len(value.split('/')) != 2:
-            raise ValidationError('CIDR mask (e.g. /24) is required.')
+        if len(value.split("/")) != 2:
+            raise ValidationError("CIDR mask (e.g. /24) is required.")
 
         try:
             return IPNetwork(value)

@@ -1,0 +1,21 @@
+{% extends '_base.html' %}
+{% load buttons %}
+
+{% block content %}
+<div class="pull-right">
+    {% if perms.ipam.add_port_template_group %}
+        {% add_button 'ipam:port_template_group_add' %}
+        {% import_button 'ipam:port_template_group_import' %}
+    {% endif %}
+    {% export_button content_type %}
+</div>
+<h1>{% block title %}Port-templates Groups{% endblock %}</h1>
+<div class="row">
+	<div class="col-md-9">
+        {% include 'utilities/obj_table.html' with bulk_delete_url='ipam:port_template_group_bulk_delete' %}
+    </div>
+    <div class="col-md-3">
+		{% include 'inc/search_panel.html' %}
+    </div>
+</div>
+{% endblock %}

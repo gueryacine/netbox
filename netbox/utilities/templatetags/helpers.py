@@ -17,13 +17,14 @@ register = template.Library()
 # Filters
 #
 
+
 @register.filter()
 def oneline(value):
     """
     Replace each line break with a single space
     """
-    value = value.replace('\r', '')
-    return value.replace('\n', ' ')
+    value = value.replace("\r", "")
+    return value.replace("\n", " ")
 
 
 @register.filter()
@@ -58,7 +59,7 @@ def gfm(value):
     """
     Render text as GitHub-Flavored Markdown
     """
-    html = markdown(value, extensions=['mdx_gfm'])
+    html = markdown(value, extensions=["mdx_gfm"])
     return mark_safe(html)
 
 
@@ -91,7 +92,7 @@ def contains(value, arg):
     """
     Test whether a value contains any of a given set of strings. `arg` should be a comma-separated list of strings.
     """
-    return any(s in value for s in arg.split(','))
+    return any(s in value for s in arg.split(","))
 
 
 @register.filter()
@@ -99,7 +100,7 @@ def bettertitle(value):
     """
     Alternative to the builtin title(); uppercases words without replacing letters that are already uppercase.
     """
-    return ' '.join([w[0].upper() + w[1:] for w in value.split()])
+    return " ".join([w[0].upper() + w[1:] for w in value.split()])
 
 
 @register.filter()
@@ -112,17 +113,17 @@ def humanize_speed(speed):
         10000000 => "10 Gbps"
     """
     if not speed:
-        return ''
+        return ""
     if speed >= 1000000000 and speed % 1000000000 == 0:
-        return '{} Tbps'.format(int(speed / 1000000000))
+        return "{} Tbps".format(int(speed / 1000000000))
     elif speed >= 1000000 and speed % 1000000 == 0:
-        return '{} Gbps'.format(int(speed / 1000000))
+        return "{} Gbps".format(int(speed / 1000000))
     elif speed >= 1000 and speed % 1000 == 0:
-        return '{} Mbps'.format(int(speed / 1000))
+        return "{} Mbps".format(int(speed / 1000))
     elif speed >= 1000:
-        return '{} Mbps'.format(float(speed) / 1000)
+        return "{} Mbps".format(float(speed) / 1000)
     else:
-        return '{} Kbps'.format(speed)
+        return "{} Kbps".format(speed)
 
 
 @register.filter()
@@ -131,20 +132,21 @@ def example_choices(field, arg=3):
     Returns a number (default: 3) of example choices for a ChoiceFiled (useful for CSV import forms).
     """
     examples = []
-    if hasattr(field, 'queryset'):
+    if hasattr(field, "queryset"):
         choices = [
-            (obj.pk, getattr(obj, field.to_field_name)) for obj in field.queryset[:arg + 1]
+            (obj.pk, getattr(obj, field.to_field_name))
+            for obj in field.queryset[: arg + 1]
         ]
     else:
         choices = field.choices
     for value, label in unpack_grouped_choices(choices):
         if len(examples) == arg:
-            examples.append('etc.')
+            examples.append("etc.")
             break
         if not value or not label:
             continue
         examples.append(label)
-    return ', '.join(examples) or 'None'
+    return ", ".join(examples) or "None"
 
 
 @register.filter()
@@ -152,7 +154,7 @@ def tzoffset(value):
     """
     Returns the hour offset of a given time zone using the current time.
     """
-    return datetime.datetime.now(value).strftime('%z')
+    return datetime.datetime.now(value).strftime("%z")
 
 
 @register.filter()
@@ -160,35 +162,16 @@ def fgcolor(value):
     """
     Return black (#000000) or white (#ffffff) given an arbitrary background color in RRGGBB format.
     """
-    value = value.lower().strip('#')
-    if not re.match('^[0-9a-f]{6}$', value):
-        return ''
-    return '#{}'.format(foreground_color(value))
-
-
-@register.filter()
-def divide(x, y):
-    """
-    Return x/y (rounded).
-    """
-    if x is None or y is None:
-        return None
-    return round(x / y)
-
-
-@register.filter()
-def percentage(x, y):
-    """
-    Return x/y as a percentage.
-    """
-    if x is None or y is None:
-        return None
-    return round(x / y * 100)
+    value = value.lower().strip("#")
+    if not re.match("^[0-9a-f]{6}$", value):
+        return ""
+    return "#{}".format(foreground_color(value))
 
 
 #
 # Tags
 #
+
 
 @register.simple_tag()
 def querystring(request, **kwargs):
@@ -201,31 +184,28 @@ def querystring(request, **kwargs):
             querydict[k] = str(v)
         elif k in querydict:
             querydict.pop(k)
-    querystring = querydict.urlencode(safe='/')
+    querystring = querydict.urlencode(safe="/")
     if querystring:
-        return '?' + querystring
+        return "?" + querystring
     else:
-        return ''
+        return ""
 
 
-@register.inclusion_tag('utilities/templatetags/utilization_graph.html')
+@register.inclusion_tag("utilities/templatetags/utilization_graph.html")
 def utilization_graph(utilization, warning_threshold=75, danger_threshold=90):
     """
     Display a horizontal bar graph indicating a percentage of utilization.
     """
     return {
-        'utilization': utilization,
-        'warning_threshold': warning_threshold,
-        'danger_threshold': danger_threshold,
+        "utilization": utilization,
+        "warning_threshold": warning_threshold,
+        "danger_threshold": danger_threshold,
     }
 
 
-@register.inclusion_tag('utilities/templatetags/tag.html')
+@register.inclusion_tag("utilities/templatetags/tag.html")
 def tag(tag, url_name=None):
     """
     Display a tag, optionally linked to a filtered list of objects.
     """
-    return {
-        'tag': tag,
-        'url_name': url_name,
-    }
+    return {"tag": tag, "url_name": url_name}

@@ -1,4 +1,3 @@
-from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,21 +15,18 @@ from . import serializers
 # Field choices
 #
 
+
 class CircuitsFieldChoicesViewSet(FieldChoicesViewSet):
-    fields = (
-        (Circuit, ['status']),
-        (CircuitTermination, ['term_side']),
-    )
+    fields = ((Circuit, ["status"]), (CircuitTermination, ["term_side"]))
 
 
 #
 # Providers
 #
 
+
 class ProviderViewSet(CustomFieldModelViewSet):
-    queryset = Provider.objects.prefetch_related('tags').annotate(
-        circuit_count=Count('circuits')
-    )
+    queryset = Provider.objects.prefetch_related("tags")
     serializer_class = serializers.ProviderSerializer
     filterset_class = filters.ProviderFilter
 
@@ -41,7 +37,9 @@ class ProviderViewSet(CustomFieldModelViewSet):
         """
         provider = get_object_or_404(Provider, pk=pk)
         queryset = Graph.objects.filter(type=GRAPH_TYPE_PROVIDER)
-        serializer = RenderedGraphSerializer(queryset, many=True, context={'graphed_object': provider})
+        serializer = RenderedGraphSerializer(
+            queryset, many=True, context={"graphed_object": provider}
+        )
         return Response(serializer.data)
 
 
@@ -49,10 +47,9 @@ class ProviderViewSet(CustomFieldModelViewSet):
 #  Circuit Types
 #
 
+
 class CircuitTypeViewSet(ModelViewSet):
-    queryset = CircuitType.objects.annotate(
-        circuit_count=Count('circuits')
-    )
+    queryset = CircuitType.objects.all()
     serializer_class = serializers.CircuitTypeSerializer
     filterset_class = filters.CircuitTypeFilter
 
@@ -61,8 +58,11 @@ class CircuitTypeViewSet(ModelViewSet):
 # Circuits
 #
 
+
 class CircuitViewSet(CustomFieldModelViewSet):
-    queryset = Circuit.objects.select_related('type', 'tenant', 'provider').prefetch_related('tags')
+    queryset = Circuit.objects.select_related(
+        "type", "tenant", "provider"
+    ).prefetch_related("tags")
     serializer_class = serializers.CircuitSerializer
     filterset_class = filters.CircuitFilter
 
@@ -71,9 +71,10 @@ class CircuitViewSet(CustomFieldModelViewSet):
 # Circuit Terminations
 #
 
+
 class CircuitTerminationViewSet(ModelViewSet):
     queryset = CircuitTermination.objects.select_related(
-        'circuit', 'site', 'connected_endpoint__device', 'cable'
+        "circuit", "site", "connected_endpoint__device", "cable"
     )
     serializer_class = serializers.CircuitTerminationSerializer
     filterset_class = filters.CircuitTerminationFilter

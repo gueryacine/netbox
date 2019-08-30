@@ -6,14 +6,11 @@ from netaddr import AddrFormatError, EUI, mac_unix_expanded
 
 class ASNField(models.BigIntegerField):
     description = "32-bit ASN field"
-    default_validators = [
-        MinValueValidator(1),
-        MaxValueValidator(4294967295),
-    ]
+    default_validators = [MinValueValidator(1), MaxValueValidator(4294967295)]
 
 
 class mac_unix_expanded_uppercase(mac_unix_expanded):
-    word_fmt = '%.2X'
+    word_fmt = "%.2X"
 
 
 class MACAddressField(models.Field):
@@ -31,10 +28,10 @@ class MACAddressField(models.Field):
         try:
             return EUI(value, version=48, dialect=mac_unix_expanded_uppercase)
         except AddrFormatError as e:
-            raise ValidationError("Invalid MAC address format: {}".format(value))
+            raise ValidationError(e)
 
     def db_type(self, connection):
-        return 'macaddr'
+        return "macaddr"
 
     def get_prep_value(self, value):
         if not value:

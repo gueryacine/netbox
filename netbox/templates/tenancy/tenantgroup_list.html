@@ -2,7 +2,7 @@
 {% load buttons %}
 
 {% block content %}
-<div class="pull-right noprint">
+<div class="pull-right">
     {% if perms.tenancy.add_tenantgroup %}
         {% add_button 'tenancy:tenantgroup_add' %}
         {% import_button 'tenancy:tenantgroup_import' %}

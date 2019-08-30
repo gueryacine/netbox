@@ -5,10 +5,19 @@ import sys
 from django import get_version
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
+from django.db.models import Model
 
-APPS = ['circuits', 'dcim', 'extras', 'ipam', 'secrets', 'tenancy', 'users', 'virtualization']
+APPS = [
+    "circuits",
+    "dcim",
+    "extras",
+    "ipam",
+    "secrets",
+    "tenancy",
+    "users",
+    "virtualization",
+]
 
 BANNER_TEXT = """### NetBox interactive shell ({node})
 ### Python {python} | Django {django} | NetBox {netbox}
@@ -16,7 +25,7 @@ BANNER_TEXT = """### NetBox interactive shell ({node})
     node=platform.node(),
     python=platform.python_version(),
     django=get_version(),
-    netbox=settings.VERSION
+    netbox=settings.VERSION,
 )
 
 
@@ -27,9 +36,9 @@ class Command(BaseCommand):
     def _lsmodels(self):
         for app, models in self.django_models.items():
             app_name = apps.get_app_config(app).verbose_name
-            print('{}:'.format(app_name))
+            print("{}:".format(app_name))
             for m in models:
-                print('  {}'.format(m))
+                print("  {}".format(m))
 
     def get_namespace(self):
         namespace = {}
@@ -38,26 +47,27 @@ class Command(BaseCommand):
         for app in APPS:
             self.django_models[app] = []
 
-            # Load models from each app
-            for model in apps.get_app_config(app).get_models():
-                namespace[model.__name__] = model
-                self.django_models[app].append(model.__name__)
+            # Models
+            app_models = sys.modules["{}.models".format(app)]
+            for name in dir(app_models):
+                model = getattr(app_models, name)
+                try:
+                    if issubclass(model, Model) and model._meta.app_label == app:
+                        namespace[name] = model
+                        self.django_models[app].append(name)
+                except TypeError:
+                    pass
 
             # Constants
             try:
-                app_constants = sys.modules['{}.constants'.format(app)]
+                app_constants = sys.modules["{}.constants".format(app)]
                 for name in dir(app_constants):
                     namespace[name] = getattr(app_constants, name)
             except KeyError:
                 pass
 
-        # Additional objects to include
-        namespace['User'] = User
-
         # Load convenience commands
-        namespace.update({
-            'lsmodels': self._lsmodels,
-        })
+        namespace.update({"lsmodels": self._lsmodels})
 
         return namespace
 

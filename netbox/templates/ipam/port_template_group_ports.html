@@ -1,0 +1,24 @@
+{% extends '_base.html' %}
+
+{% block title %}{{ port_template_group }} - port_templates{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-sm-12 col-md-12">
+        <ol class="breadcrumb">
+            <li><a href="{% url 'ipam:port_template_group_list' %}">Port-templates Groups</a></li>
+            {% if port_template_group.site %}
+                <li><a href="{% url 'dcim:site' slug=port_template_group.site.slug %}">{{ port_template_group.site }}</a></li>
+            {% endif %}
+            <li>{{ port_template_group }}</li>
+        </ol>
+    </div>
+</div>
+    {% include 'ipam/inc/port_template_group_header.html' %}
+    <div class="row">
+        <div class="col-md-12">
+            {% include 'utilities/obj_table.html' with table=port_template_table table_template='panel_table.html' heading='Port-templates' bulk_edit_url='ipam:port_template_bulk_edit' bulk_delete_url='ipam:port_template_bulk_delete' %}
+        </div>
+    </div>
+{% endblock %}
+

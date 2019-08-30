@@ -6,7 +6,14 @@ from collections import OrderedDict
 from django.conf import settings
 from django.utils import timezone
 
-from .constants import LOG_DEFAULT, LOG_FAILURE, LOG_INFO, LOG_LEVEL_CODES, LOG_SUCCESS, LOG_WARNING
+from .constants import (
+    LOG_DEFAULT,
+    LOG_FAILURE,
+    LOG_INFO,
+    LOG_LEVEL_CODES,
+    LOG_SUCCESS,
+    LOG_WARNING,
+)
 from .models import ReportResult
 
 
@@ -21,7 +28,7 @@ def get_report(module_name, report_name):
     """
     Return a specific report from within a module.
     """
-    file_path = '{}/{}.py'.format(settings.REPORTS_ROOT, module_name)
+    file_path = "{}/{}.py".format(settings.REPORTS_ROOT, module_name)
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
@@ -83,6 +90,7 @@ class Report(object):
         }
     }
     """
+
     description = None
 
     def __init__(self):
@@ -94,15 +102,17 @@ class Report(object):
         # Compile test methods and initialize results skeleton
         test_methods = []
         for method in dir(self):
-            if method.startswith('test_') and callable(getattr(self, method)):
+            if method.startswith("test_") and callable(getattr(self, method)):
                 test_methods.append(method)
-                self._results[method] = OrderedDict([
-                    ('success', 0),
-                    ('info', 0),
-                    ('warning', 0),
-                    ('failure', 0),
-                    ('log', []),
-                ])
+                self._results[method] = OrderedDict(
+                    [
+                        ("success", 0),
+                        ("info", 0),
+                        ("warning", 0),
+                        ("failure", 0),
+                        ("log", []),
+                    ]
+                )
         if not test_methods:
             raise Exception("A report must contain at least one test method.")
         self.test_methods = test_methods
@@ -117,7 +127,7 @@ class Report(object):
 
     @property
     def full_name(self):
-        return '.'.join([self.module, self.name])
+        return ".".join([self.module, self.name])
 
     def _log(self, obj, message, level=LOG_DEFAULT):
         """
@@ -125,13 +135,17 @@ class Report(object):
         """
         if level not in LOG_LEVEL_CODES:
             raise Exception("Unknown logging level: {}".format(level))
-        self._results[self.active_test]['log'].append((
-            timezone.now().isoformat(),
-            LOG_LEVEL_CODES.get(level),
-            str(obj) if obj else None,
-            obj.get_absolute_url() if getattr(obj, 'get_absolute_url', None) else None,
-            message,
-        ))
+        self._results[self.active_test]["log"].append(
+            (
+                timezone.now().isoformat(),
+                LOG_LEVEL_CODES.get(level),
+                str(obj) if obj else None,
+                obj.get_absolute_url()
+                if getattr(obj, "get_absolute_url", None)
+                else None,
+                message,
+            )
+        )
 
     def log(self, message):
         """
@@ -145,28 +159,28 @@ class Report(object):
         """
         if message:
             self._log(obj, message, level=LOG_SUCCESS)
-        self._results[self.active_test]['success'] += 1
+        self._results[self.active_test]["success"] += 1
 
     def log_info(self, obj, message):
         """
         Log an informational message.
         """
         self._log(obj, message, level=LOG_INFO)
-        self._results[self.active_test]['info'] += 1
+        self._results[self.active_test]["info"] += 1
 
     def log_warning(self, obj, message):
         """
         Log a warning.
         """
         self._log(obj, message, level=LOG_WARNING)
-        self._results[self.active_test]['warning'] += 1
+        self._results[self.active_test]["warning"] += 1
 
     def log_failure(self, obj, message):
         """
         Log a failure. Calling this method will automatically mark the report as failed.
         """
         self._log(obj, message, level=LOG_FAILURE)
-        self._results[self.active_test]['failure'] += 1
+        self._results[self.active_test]["failure"] += 1
         self.failed = True
 
     def run(self):
@@ -180,7 +194,9 @@ class Report(object):
 
         # Delete any previous ReportResult and create a new one to record the result.
         ReportResult.objects.filter(report=self.full_name).delete()
-        result = ReportResult(report=self.full_name, failed=self.failed, data=self._results)
+        result = ReportResult(
+            report=self.full_name, failed=self.failed, data=self._results
+        )
         result.save()
         self.result = result
 

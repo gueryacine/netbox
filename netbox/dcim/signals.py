@@ -10,7 +10,9 @@ def assign_virtualchassis_master(instance, created, **kwargs):
     When a VirtualChassis is created, automatically assign its master device to the VC.
     """
     if created:
-        Device.objects.filter(pk=instance.master.pk).update(virtual_chassis=instance, vc_position=None)
+        Device.objects.filter(pk=instance.master.pk).update(
+            virtual_chassis=instance, vc_position=None
+        )
 
 
 @receiver(pre_delete, sender=VirtualChassis)
@@ -18,7 +20,9 @@ def clear_virtualchassis_members(instance, **kwargs):
     """
     When a VirtualChassis is deleted, nullify the vc_position and vc_priority fields of its prior members.
     """
-    Device.objects.filter(virtual_chassis=instance.pk).update(vc_position=None, vc_priority=None)
+    Device.objects.filter(virtual_chassis=instance.pk).update(
+        vc_position=None, vc_priority=None
+    )
 
 
 @receiver(post_save, sender=Cable)
@@ -62,7 +66,9 @@ def nullify_connected_endpoints(instance, **kwargs):
         instance.termination_b.save()
 
     # If this Cable was part of a complete path, tear it down
-    if hasattr(endpoint_a, 'connected_endpoint') and hasattr(endpoint_b, 'connected_endpoint'):
+    if hasattr(endpoint_a, "connected_endpoint") and hasattr(
+        endpoint_b, "connected_endpoint"
+    ):
         endpoint_a.connected_endpoint = None
         endpoint_a.connection_status = None
         endpoint_a.save()

@@ -2,7 +2,7 @@
 {% load buttons %}
 
 {% block content %}
-<div class="pull-right noprint">
+<div class="pull-right">
     {% if perms.ipam.add_role %}
         {% add_button 'ipam:role_add' %}
         {% import_button 'ipam:role_import' %}

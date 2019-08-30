@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 
-default_app_config = 'extras.apps.ExtrasConfig'
+default_app_config = "extras.apps.ExtrasConfig"
 
 # check that django-rq is installed and we can connect to redis
 if settings.WEBHOOKS_ENABLED:

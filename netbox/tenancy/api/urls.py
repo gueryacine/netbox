@@ -7,19 +7,20 @@ class TenancyRootView(routers.APIRootView):
     """
     Tenancy API root view
     """
+
     def get_view_name(self):
-        return 'Tenancy'
+        return "Tenancy"
 
 
 router = routers.DefaultRouter()
 router.APIRootView = TenancyRootView
 
 # Field choices
-router.register(r'_choices', views.TenancyFieldChoicesViewSet, basename='field-choice')
+router.register(r"_choices", views.TenancyFieldChoicesViewSet, basename="field-choice")
 
 # Tenants
-router.register(r'tenant-groups', views.TenantGroupViewSet)
-router.register(r'tenants', views.TenantViewSet)
+router.register(r"tenant-groups", views.TenantGroupViewSet)
+router.register(r"tenants", views.TenantViewSet)
 
-app_name = 'tenancy-api'
+app_name = "tenancy-api"
 urlpatterns = router.urls

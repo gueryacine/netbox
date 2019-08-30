@@ -3,15 +3,9 @@ from django.core.paginator import Paginator, Page
 
 
 class EnhancedPaginator(Paginator):
-
     def __init__(self, object_list, per_page, **kwargs):
-        try:
-            per_page = int(per_page)
-            if per_page < 1:
-                per_page = settings.PAGINATE_COUNT
-        except ValueError:
-            per_page = settings.PAGINATE_COUNT
-
+        if not isinstance(per_page, int) or per_page < 1:
+            per_page = getattr(settings, "PAGINATE_COUNT", 50)
         super().__init__(object_list, per_page, **kwargs)
 
     def _get_page(self, *args, **kwargs):
@@ -19,7 +13,6 @@ class EnhancedPaginator(Paginator):
 
 
 class EnhancedPage(Page):
-
     def smart_pages(self):
 
         # When dealing with five or fewer pages, simply return the whole list.
@@ -32,7 +25,9 @@ class EnhancedPage(Page):
         page_list = sorted(set(self.paginator.page_range).intersection(pages_wanted))
 
         # Insert skip markers
-        skip_pages = [x[1] for x in zip(page_list[:-1], page_list[1:]) if (x[1] - x[0] != 1)]
+        skip_pages = [
+            x[1] for x in zip(page_list[:-1], page_list[1:]) if (x[1] - x[0] != 1)
+        ]
         for i in skip_pages:
             page_list.insert(page_list.index(i), False)
 

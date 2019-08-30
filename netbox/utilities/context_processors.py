@@ -5,6 +5,4 @@ def settings(request):
     """
     Expose Django settings in the template context. Example: {{ settings.DEBUG }}
     """
-    return {
-        'settings': django_settings,
-    }
+    return {"settings": django_settings}

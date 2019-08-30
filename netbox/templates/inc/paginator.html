@@ -20,11 +20,9 @@
             </ul>
         </nav>
         <form method="get">
-            {% for k, v_list in request.GET.lists %}
+            {% for k, v in request.GET.items %}
                 {% if k != 'per_page' %}
-                    {% for v in v_list %}
-                        <input type="hidden" name="{{ k }}" value="{{ v }}" />
-                    {% endfor %}
+                    <input type="hidden" name="{{ k }}" value="{{ v }}" />
                 {% endif %}
             {% endfor %}
             <select name="per_page" id="per_page">

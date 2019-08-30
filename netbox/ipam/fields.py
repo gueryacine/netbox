@@ -8,11 +8,12 @@ from .formfields import IPFormField
 
 def prefix_validator(prefix):
     if prefix.ip != prefix.cidr.ip:
-        raise ValidationError("{} is not a valid prefix. Did you mean {}?".format(prefix, prefix.cidr))
+        raise ValidationError(
+            "{} is not a valid prefix. Did you mean {}?".format(prefix, prefix.cidr)
+        )
 
 
 class BaseIPField(models.Field):
-
     def python_type(self):
         return IPNetwork
 
@@ -38,7 +39,7 @@ class BaseIPField(models.Field):
         return IPFormField
 
     def formfield(self, **kwargs):
-        defaults = {'form_class': self.form_class()}
+        defaults = {"form_class": self.form_class()}
         defaults.update(kwargs)
         return super().formfield(**defaults)
 
@@ -47,11 +48,12 @@ class IPNetworkField(BaseIPField):
     """
     IP prefix (network and mask)
     """
+
     description = "PostgreSQL CIDR field"
     default_validators = [prefix_validator]
 
     def db_type(self, connection):
-        return 'cidr'
+        return "cidr"
 
 
 IPNetworkField.register_lookup(lookups.IExact)
@@ -72,10 +74,11 @@ class IPAddressField(BaseIPField):
     """
     IP address (host address and mask)
     """
+
     description = "PostgreSQL INET field"
 
     def db_type(self, connection):
-        return 'inet'
+        return "inet"
 
 
 IPAddressField.register_lookup(lookups.IExact)

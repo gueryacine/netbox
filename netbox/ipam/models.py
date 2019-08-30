@@ -1,23 +1,22 @@
 import netaddr
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Q
 from django.db.models.expressions import RawSQL
 from django.urls import reverse
 from taggit.managers import TaggableManager
 
 from dcim.models import Interface
-from extras.models import CustomFieldModel, ObjectChange, TaggedItem
+from extras.models import CustomFieldModel
 from utilities.models import ChangeLoggedModel
-from utilities.utils import serialize_object
 from .constants import *
 from .fields import IPNetworkField, IPAddressField
 from .querysets import PrefixQuerySet
-from .validators import DNSValidator
-
+# from django.dispatch import receiver
+# from django.db.models.signals import pre_save
 
 class VRF(ChangeLoggedModel, CustomFieldModel):
     """
@@ -25,52 +24,48 @@ class VRF(ChangeLoggedModel, CustomFieldModel):
     table). Prefixes and IPAddresses can optionally be assigned to VRFs. (Prefixes and IPAddresses not assigned to a VRF
     are said to exist in the "global" table.)
     """
-    name = models.CharField(
-        max_length=50
-    )
+
+    name = models.CharField(max_length=50)
     rd = models.CharField(
         max_length=21,
         unique=True,
         blank=True,
         null=True,
-        verbose_name='Route distinguisher'
+        verbose_name="Route distinguisher",
     )
     tenant = models.ForeignKey(
-        to='tenancy.Tenant',
+        to="tenancy.Tenant",
         on_delete=models.PROTECT,
-        related_name='vrfs',
+        related_name="vrfs",
         blank=True,
-        null=True
+        null=True,
     )
     enforce_unique = models.BooleanField(
         default=True,
-        verbose_name='Enforce unique space',
-        help_text='Prevent duplicate prefixes/IP addresses within this VRF'
+        verbose_name="Enforce unique space",
+        help_text="Prevent duplicate prefixes/IP addresses within this VRF",
     )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
-    csv_headers = ['name', 'rd', 'tenant', 'enforce_unique', 'description']
+    csv_headers = ["name", "rd", "tenant", "enforce_unique", "description"]
 
     class Meta:
-        ordering = ['name', 'rd']
-        verbose_name = 'VRF'
-        verbose_name_plural = 'VRFs'
+        ordering = ["name", "rd"]
+        verbose_name = "VRF"
+        verbose_name_plural = "VRFs"
 
     def __str__(self):
         return self.display_name or super().__str__()
 
     def get_absolute_url(self):
-        return reverse('ipam:vrf', args=[self.pk])
+        return reverse("ipam:vrf", args=[self.pk])
 
     def to_csv(self):
         return (
@@ -93,38 +88,30 @@ class RIR(ChangeLoggedModel):
     A Regional Internet Registry (RIR) is responsible for the allocation of a large portion of the global IP address
     space. This can be an organization like ARIN or RIPE, or a governing standard such as RFC 1918.
     """
-    name = models.CharField(
-        max_length=50,
-        unique=True
-    )
-    slug = models.SlugField(
-        unique=True
-    )
+
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(unique=True)
     is_private = models.BooleanField(
         default=False,
-        verbose_name='Private',
-        help_text='IP space managed by this RIR is considered private'
+        verbose_name="Private",
+        help_text="IP space managed by this RIR is considered private",
     )
 
-    csv_headers = ['name', 'slug', 'is_private']
+    csv_headers = ["name", "slug", "is_private"]
 
     class Meta:
-        ordering = ['name']
-        verbose_name = 'RIR'
-        verbose_name_plural = 'RIRs'
+        ordering = ["name"]
+        verbose_name = "RIR"
+        verbose_name_plural = "RIRs"
 
     def __str__(self):
         return self.name
 
     def get_absolute_url(self):
-        return "{}?rir={}".format(reverse('ipam:aggregate_list'), self.slug)
+        return "{}?rir={}".format(reverse("ipam:aggregate_list"), self.slug)
 
     def to_csv(self):
-        return (
-            self.name,
-            self.slug,
-            self.is_private,
-        )
+        return (self.name, self.slug, self.is_private)
 
 
 class Aggregate(ChangeLoggedModel, CustomFieldModel):
@@ -132,42 +119,35 @@ class Aggregate(ChangeLoggedModel, CustomFieldModel):
     An aggregate exists at the root level of the IP address space hierarchy in NetBox. Aggregates are used to organize
     the hierarchy and track the overall utilization of available address space. Each Aggregate is assigned to a RIR.
     """
-    family = models.PositiveSmallIntegerField(
-        choices=AF_CHOICES
-    )
+
+    family = models.PositiveSmallIntegerField(choices=AF_CHOICES)
     prefix = IPNetworkField()
     rir = models.ForeignKey(
-        to='ipam.RIR',
+        to="ipam.RIR",
         on_delete=models.PROTECT,
-        related_name='aggregates',
-        verbose_name='RIR'
+        related_name="aggregates",
+        verbose_name="RIR",
     )
-    date_added = models.DateField(
-        blank=True,
-        null=True
-    )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+    date_added = models.DateField(blank=True, null=True)
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
-    csv_headers = ['prefix', 'rir', 'date_added', 'description']
+    csv_headers = ["prefix", "rir", "date_added", "description"]
 
     class Meta:
-        ordering = ['family', 'prefix']
+        ordering = ["family", "prefix"]
 
     def __str__(self):
         return str(self.prefix)
 
     def get_absolute_url(self):
-        return reverse('ipam:aggregate', args=[self.pk])
+        return reverse("ipam:aggregate", args=[self.pk])
 
     def clean(self):
 
@@ -177,26 +157,34 @@ class Aggregate(ChangeLoggedModel, CustomFieldModel):
             self.prefix = self.prefix.cidr
 
             # Ensure that the aggregate being added is not covered by an existing aggregate
-            covering_aggregates = Aggregate.objects.filter(prefix__net_contains_or_equals=str(self.prefix))
+            covering_aggregates = Aggregate.objects.filter(
+                prefix__net_contains_or_equals=str(self.prefix)
+            )
             if self.pk:
                 covering_aggregates = covering_aggregates.exclude(pk=self.pk)
             if covering_aggregates:
-                raise ValidationError({
-                    'prefix': "Aggregates cannot overlap. {} is already covered by an existing aggregate ({}).".format(
-                        self.prefix, covering_aggregates[0]
-                    )
-                })
+                raise ValidationError(
+                    {
+                        "prefix": "Aggregates cannot overlap. {} is already covered by an existing aggregate ({}).".format(
+                            self.prefix, covering_aggregates[0]
+                        )
+                    }
+                )
 
             # Ensure that the aggregate being added does not cover an existing aggregate
-            covered_aggregates = Aggregate.objects.filter(prefix__net_contained=str(self.prefix))
+            covered_aggregates = Aggregate.objects.filter(
+                prefix__net_contained=str(self.prefix)
+            )
             if self.pk:
                 covered_aggregates = covered_aggregates.exclude(pk=self.pk)
             if covered_aggregates:
-                raise ValidationError({
-                    'prefix': "Aggregates cannot overlap. {} covers an existing aggregate ({}).".format(
-                        self.prefix, covered_aggregates[0]
-                    )
-                })
+                raise ValidationError(
+                    {
+                        "prefix": "Aggregates cannot overlap. {} covers an existing aggregate ({}).".format(
+                            self.prefix, covered_aggregates[0]
+                        )
+                    }
+                )
 
     def save(self, *args, **kwargs):
         if self.prefix:
@@ -205,18 +193,15 @@ class Aggregate(ChangeLoggedModel, CustomFieldModel):
         super().save(*args, **kwargs)
 
     def to_csv(self):
-        return (
-            self.prefix,
-            self.rir.name,
-            self.date_added,
-            self.description,
-        )
+        return (self.prefix, self.rir.name, self.date_added, self.description)
 
     def get_utilization(self):
         """
         Determine the prefix utilization of the aggregate and return it as a percentage.
         """
-        queryset = Prefix.objects.filter(prefix__net_contained_or_equal=str(self.prefix))
+        queryset = Prefix.objects.filter(
+            prefix__net_contained_or_equal=str(self.prefix)
+        )
         child_prefixes = netaddr.IPSet([p.prefix for p in queryset])
         return int(float(child_prefixes.size) / self.prefix.size * 100)
 
@@ -226,31 +211,22 @@ class Role(ChangeLoggedModel):
     A Role represents the functional role of a Prefix or VLAN; for example, "Customer," "Infrastructure," or
     "Management."
     """
-    name = models.CharField(
-        max_length=50,
-        unique=True
-    )
-    slug = models.SlugField(
-        unique=True
-    )
-    weight = models.PositiveSmallIntegerField(
-        default=1000
-    )
 
-    csv_headers = ['name', 'slug', 'weight']
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(unique=True)
+    weight = models.PositiveSmallIntegerField(default=1000)
+
+    csv_headers = ["name", "slug", "weight"]
 
     class Meta:
-        ordering = ['weight', 'name']
+        ordering = ["weight", "name"]
 
     def __str__(self):
         return self.name
 
     def to_csv(self):
-        return (
-            self.name,
-            self.slug,
-            self.weight,
-        )
+        return (self.name, self.slug, self.weight)
+
 
 
 class Prefix(ChangeLoggedModel, CustomFieldModel):
@@ -259,88 +235,100 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
     VRFs. A Prefix must be assigned a status and may optionally be assigned a used-define Role. A Prefix can also be
     assigned to a VLAN where appropriate.
     """
-    family = models.PositiveSmallIntegerField(
-        choices=AF_CHOICES,
-        editable=False
-    )
-    prefix = IPNetworkField(
-        help_text='IPv4 or IPv6 network with mask'
-    )
+
+    family = models.PositiveSmallIntegerField(choices=AF_CHOICES, editable=False)
+    prefix = IPNetworkField(help_text="IPv4 or IPv6 network with mask")
     site = models.ForeignKey(
-        to='dcim.Site',
+        to="dcim.Site",
         on_delete=models.PROTECT,
-        related_name='prefixes',
+        related_name="prefixes",
         blank=True,
-        null=True
+        null=True,
     )
     vrf = models.ForeignKey(
-        to='ipam.VRF',
+        to="ipam.VRF",
         on_delete=models.PROTECT,
-        related_name='prefixes',
+        related_name="prefixes",
         blank=True,
         null=True,
-        verbose_name='VRF'
+        verbose_name="VRF",
     )
     tenant = models.ForeignKey(
-        to='tenancy.Tenant',
+        to="tenancy.Tenant",
         on_delete=models.PROTECT,
-        related_name='prefixes',
-        blank=True,
-        null=True
-    )
-    vlan = models.ForeignKey(
-        to='ipam.VLAN',
-        on_delete=models.PROTECT,
-        related_name='prefixes',
+        related_name="prefixes",
         blank=True,
         null=True,
-        verbose_name='VLAN'
+    )
+    vlan = models.ForeignKey(
+        to="ipam.VLAN",
+        on_delete=models.PROTECT,
+        related_name="prefixes",
+        blank=True,
+        null=True,
+        verbose_name="VLAN",
+    )
+    port_template = models.ForeignKey(
+        to="ipam.PortTemplate",
+        on_delete=models.PROTECT,
+        related_name="prefixes",
+        blank=True,
+        null=True,
+        verbose_name="port_template",
     )
     status = models.PositiveSmallIntegerField(
         choices=PREFIX_STATUS_CHOICES,
         default=PREFIX_STATUS_ACTIVE,
-        verbose_name='Status',
-        help_text='Operational status of this prefix'
+        verbose_name="Status",
+        help_text="Operational status of this prefix",
     )
     role = models.ForeignKey(
-        to='ipam.Role',
+        to="ipam.Role",
         on_delete=models.SET_NULL,
-        related_name='prefixes',
+        related_name="prefixes",
         blank=True,
         null=True,
-        help_text='The primary function of this prefix'
+        help_text="The primary function of this prefix",
     )
     is_pool = models.BooleanField(
-        verbose_name='Is a pool',
+        verbose_name="Is a pool",
         default=False,
-        help_text='All IP addresses within this prefix are considered usable'
+        help_text="All IP addresses within this prefix are considered usable",
     )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
     objects = PrefixQuerySet.as_manager()
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
     csv_headers = [
-        'prefix', 'vrf', 'tenant', 'site', 'vlan_group', 'vlan_vid', 'status', 'role', 'is_pool', 'description',
+        "prefix",
+        "vrf",
+        "tenant",
+        "site",
+        "vlan_group",
+        "vlan_vid",
+        "port_template_group",
+        "port_template_name",
+        "status",
+        "role",
+        "is_pool",
+        "description",
     ]
 
     class Meta:
-        ordering = [F('vrf').asc(nulls_first=True), 'family', 'prefix']
-        verbose_name_plural = 'prefixes'
+        ordering = ["vrf", "family", "prefix"]
+        verbose_name_plural = "prefixes"
 
     def __str__(self):
         return str(self.prefix)
 
     def get_absolute_url(self):
-        return reverse('ipam:prefix', args=[self.pk])
+        return reverse("ipam:prefix", args=[self.pk])
 
     def clean(self):
 
@@ -348,35 +336,41 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
 
             # Disallow host masks
             if self.prefix.version == 4 and self.prefix.prefixlen == 32:
-                raise ValidationError({
-                    'prefix': "Cannot create host addresses (/32) as prefixes. Create an IPv4 address instead."
-                })
+                raise ValidationError(
+                    {
+                        "prefix": "Cannot create host addresses (/32) as prefixes. Create an IPv4 address instead."
+                    }
+                )
             elif self.prefix.version == 6 and self.prefix.prefixlen == 128:
-                raise ValidationError({
-                    'prefix': "Cannot create host addresses (/128) as prefixes. Create an IPv6 address instead."
-                })
+                raise ValidationError(
+                    {
+                        "prefix": "Cannot create host addresses (/128) as prefixes. Create an IPv6 address instead."
+                    }
+                )
 
             # Enforce unique IP space (if applicable)
-            if (self.vrf is None and settings.ENFORCE_GLOBAL_UNIQUE) or (self.vrf and self.vrf.enforce_unique):
+            if (self.vrf is None and settings.ENFORCE_GLOBAL_UNIQUE) or (
+                self.vrf and self.vrf.enforce_unique
+            ):
                 duplicate_prefixes = self.get_duplicates()
                 if duplicate_prefixes:
-                    raise ValidationError({
-                        'prefix': "Duplicate prefix found in {}: {}".format(
-                            "VRF {}".format(self.vrf) if self.vrf else "global table",
-                            duplicate_prefixes.first(),
-                        )
-                    })
+                    raise ValidationError(
+                        {
+                            "prefix": "Duplicate prefix found in {}: {}".format(
+                                "VRF {}".format(self.vrf)
+                                if self.vrf
+                                else "global table",
+                                duplicate_prefixes.first(),
+                            )
+                        }
+                    )
 
     def save(self, *args, **kwargs):
-
-        if isinstance(self.prefix, netaddr.IPNetwork):
-
+        if self.prefix:
             # Clear host bits from prefix
             self.prefix = self.prefix.cidr
-
-            # Record address family
+            # Infer address family from IPNetwork object
             self.family = self.prefix.version
-
         super().save(*args, **kwargs)
 
     def to_csv(self):
@@ -387,6 +381,8 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
             self.site.name if self.site else None,
             self.vlan.group.name if self.vlan and self.vlan.group else None,
             self.vlan.vid if self.vlan else None,
+            self.port_template.group.name if self.port_template and self.port_template.group else None,
+            self.port_template.name if self.port_template else None,
             self.get_status_display(),
             self.role.name if self.role else None,
             self.is_pool,
@@ -400,13 +396,16 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         """
         if self.prefix is not None:
             self.prefix.prefixlen = value
+
     prefix_length = property(fset=_set_prefix_length)
 
     def get_status_class(self):
         return STATUS_CHOICE_CLASSES[self.status]
 
     def get_duplicates(self):
-        return Prefix.objects.filter(vrf=self.vrf, prefix=str(self.prefix)).exclude(pk=self.pk)
+        return Prefix.objects.filter(vrf=self.vrf, prefix=str(self.prefix)).exclude(
+            pk=self.pk
+        )
 
     def get_child_prefixes(self):
         """
@@ -416,7 +415,9 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         if self.vrf is None and self.status == PREFIX_STATUS_CONTAINER:
             return Prefix.objects.filter(prefix__net_contained=str(self.prefix))
         else:
-            return Prefix.objects.filter(prefix__net_contained=str(self.prefix), vrf=self.vrf)
+            return Prefix.objects.filter(
+                prefix__net_contained=str(self.prefix), vrf=self.vrf
+            )
 
     def get_child_ips(self):
         """
@@ -424,16 +425,22 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         child IPAddresses belonging to any VRF.
         """
         if self.vrf is None and self.status == PREFIX_STATUS_CONTAINER:
-            return IPAddress.objects.filter(address__net_host_contained=str(self.prefix))
+            return IPAddress.objects.filter(
+                address__net_host_contained=str(self.prefix)
+            )
         else:
-            return IPAddress.objects.filter(address__net_host_contained=str(self.prefix), vrf=self.vrf)
+            return IPAddress.objects.filter(
+                address__net_host_contained=str(self.prefix), vrf=self.vrf
+            )
 
     def get_available_prefixes(self):
         """
         Return all available Prefixes within this prefix as an IPSet.
         """
         prefix = netaddr.IPSet(self.prefix)
-        child_prefixes = netaddr.IPSet([child.prefix for child in self.get_child_prefixes()])
+        child_prefixes = netaddr.IPSet(
+            [child.prefix for child in self.get_child_prefixes()]
+        )
         available_prefixes = prefix - child_prefixes
 
         return available_prefixes
@@ -451,18 +458,15 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
             return available_ips
 
         # All IP addresses within a point-to-point prefix (IPv4 /31 or IPv6 /127) are considered usable
-        if (
-            self.family == 4 and self.prefix.prefixlen == 31  # RFC 3021
-        ) or (
+        if (self.family == 4 and self.prefix.prefixlen == 31) or (  # RFC 3021
             self.family == 6 and self.prefix.prefixlen == 127  # RFC 6164
         ):
             return available_ips
 
         # Omit first and last IP address from the available set
-        available_ips -= netaddr.IPSet([
-            netaddr.IPAddress(self.prefix.first),
-            netaddr.IPAddress(self.prefix.last),
-        ])
+        available_ips -= netaddr.IPSet(
+            [netaddr.IPAddress(self.prefix.first), netaddr.IPAddress(self.prefix.last)]
+        )
 
         return available_ips
 
@@ -482,7 +486,7 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         available_ips = self.get_available_ips()
         if not available_ips:
             return None
-        return '{}/{}'.format(next(available_ips.__iter__()), self.prefix.prefixlen)
+        return "{}/{}".format(next(available_ips.__iter__()), self.prefix.prefixlen)
 
     def get_utilization(self):
         """
@@ -490,12 +494,16 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         "container", calculate utilization based on child prefixes. For all others, count child IP addresses.
         """
         if self.status == PREFIX_STATUS_CONTAINER:
-            queryset = Prefix.objects.filter(prefix__net_contained=str(self.prefix), vrf=self.vrf)
+            queryset = Prefix.objects.filter(
+                prefix__net_contained=str(self.prefix), vrf=self.vrf
+            )
             child_prefixes = netaddr.IPSet([p.prefix for p in queryset])
             return int(float(child_prefixes.size) / self.prefix.size * 100)
         else:
             # Compile an IPSet to avoid counting duplicate IPs
-            child_count = netaddr.IPSet([ip.address.ip for ip in self.get_child_ips()]).size
+            child_count = netaddr.IPSet(
+                [ip.address.ip for ip in self.get_child_ips()]
+            ).size
             prefix_size = self.prefix.size
             if self.family == 4 and self.prefix.prefixlen < 31 and not self.is_pool:
                 prefix_size -= 2
@@ -503,7 +511,6 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
 
 
 class IPAddressManager(models.Manager):
-
     def get_queryset(self):
         """
         By default, PostgreSQL will order INETs with shorter (larger) prefix lengths ahead of those with longer
@@ -513,7 +520,9 @@ class IPAddressManager(models.Manager):
         IP address as a /32 or /128.
         """
         qs = super().get_queryset()
-        return qs.annotate(host=RawSQL('INET(HOST(ipam_ipaddress.address))', [])).order_by('family', 'host')
+        return qs.annotate(
+            host=RawSQL("INET(HOST(ipam_ipaddress.address))", [])
+        ).order_by("family", "host")
 
 
 class IPAddress(ChangeLoggedModel, CustomFieldModel):
@@ -527,153 +536,126 @@ class IPAddress(ChangeLoggedModel, CustomFieldModel):
     for example, when mapping public addresses to private addresses. When an Interface has been assigned an IPAddress
     which has a NAT outside IP, that Interface's Device can use either the inside or outside IP as its primary IP.
     """
-    family = models.PositiveSmallIntegerField(
-        choices=AF_CHOICES,
-        editable=False
-    )
-    address = IPAddressField(
-        help_text='IPv4 or IPv6 address (with mask)'
-    )
+
+    family = models.PositiveSmallIntegerField(choices=AF_CHOICES, editable=False)
+    address = IPAddressField(help_text="IPv4 or IPv6 address (with mask)")
     vrf = models.ForeignKey(
-        to='ipam.VRF',
+        to="ipam.VRF",
         on_delete=models.PROTECT,
-        related_name='ip_addresses',
+        related_name="ip_addresses",
         blank=True,
         null=True,
-        verbose_name='VRF'
+        verbose_name="VRF",
     )
     tenant = models.ForeignKey(
-        to='tenancy.Tenant',
+        to="tenancy.Tenant",
         on_delete=models.PROTECT,
-        related_name='ip_addresses',
+        related_name="ip_addresses",
         blank=True,
-        null=True
+        null=True,
     )
     status = models.PositiveSmallIntegerField(
         choices=IPADDRESS_STATUS_CHOICES,
         default=IPADDRESS_STATUS_ACTIVE,
-        verbose_name='Status',
-        help_text='The operational status of this IP'
+        verbose_name="Status",
+        help_text="The operational status of this IP",
     )
     role = models.PositiveSmallIntegerField(
-        verbose_name='Role',
+        verbose_name="Role",
         choices=IPADDRESS_ROLE_CHOICES,
         blank=True,
         null=True,
-        help_text='The functional role of this IP'
+        help_text="The functional role of this IP",
     )
     interface = models.ForeignKey(
-        to='dcim.Interface',
+        to="dcim.Interface",
         on_delete=models.CASCADE,
-        related_name='ip_addresses',
-        blank=True,
-        null=True
-    )
-    nat_inside = models.OneToOneField(
-        to='self',
-        on_delete=models.SET_NULL,
-        related_name='nat_outside',
+        related_name="ip_addresses",
         blank=True,
         null=True,
-        verbose_name='NAT (Inside)',
-        help_text='The IP for which this address is the "outside" IP'
     )
-    dns_name = models.CharField(
-        max_length=255,
+    nat_inside = models.OneToOneField(
+        to="self",
+        on_delete=models.SET_NULL,
+        related_name="nat_outside",
         blank=True,
-        validators=[DNSValidator],
-        verbose_name='DNS Name',
-        help_text='Hostname or FQDN (not case-sensitive)'
+        null=True,
+        verbose_name="NAT (Inside)",
+        help_text='The IP for which this address is the "outside" IP',
     )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
     objects = IPAddressManager()
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
     csv_headers = [
-        'address', 'vrf', 'tenant', 'status', 'role', 'device', 'virtual_machine', 'interface_name', 'is_primary',
-        'dns_name', 'description',
+        "address",
+        "vrf",
+        "tenant",
+        "status",
+        "role",
+        "device",
+        "virtual_machine",
+        "interface_name",
+        "is_primary",
+        "description",
     ]
 
     class Meta:
-        ordering = ['family', 'address']
-        verbose_name = 'IP address'
-        verbose_name_plural = 'IP addresses'
+        ordering = ["family", "address"]
+        verbose_name = "IP address"
+        verbose_name_plural = "IP addresses"
 
     def __str__(self):
         return str(self.address)
 
     def get_absolute_url(self):
-        return reverse('ipam:ipaddress', args=[self.pk])
+        return reverse("ipam:ipaddress", args=[self.pk])
 
     def get_duplicates(self):
-        return IPAddress.objects.filter(vrf=self.vrf, address__net_host=str(self.address.ip)).exclude(pk=self.pk)
+        return IPAddress.objects.filter(
+            vrf=self.vrf, address__net_host=str(self.address.ip)
+        ).exclude(pk=self.pk)
 
     def clean(self):
 
         if self.address:
 
             # Enforce unique IP space (if applicable)
-            if self.role not in IPADDRESS_ROLES_NONUNIQUE and ((
-                self.vrf is None and settings.ENFORCE_GLOBAL_UNIQUE
-            ) or (
-                self.vrf and self.vrf.enforce_unique
-            )):
+            if self.role not in IPADDRESS_ROLES_NONUNIQUE and (
+                (self.vrf is None and settings.ENFORCE_GLOBAL_UNIQUE)
+                or (self.vrf and self.vrf.enforce_unique)
+            ):
                 duplicate_ips = self.get_duplicates()
                 if duplicate_ips:
-                    raise ValidationError({
-                        'address': "Duplicate IP address found in {}: {}".format(
-                            "VRF {}".format(self.vrf) if self.vrf else "global table",
-                            duplicate_ips.first(),
-                        )
-                    })
+                    raise ValidationError(
+                        {
+                            "address": "Duplicate IP address found in {}: {}".format(
+                                "VRF {}".format(self.vrf)
+                                if self.vrf
+                                else "global table",
+                                duplicate_ips.first(),
+                            )
+                        }
+                    )
 
     def save(self, *args, **kwargs):
-
-        # Record address family
-        if isinstance(self.address, netaddr.IPNetwork):
+        if self.address:
+            # Infer address family from IPAddress object
             self.family = self.address.version
-
-        # Force dns_name to lowercase
-        self.dns_name = self.dns_name.lower()
-
         super().save(*args, **kwargs)
-
-    def log_change(self, user, request_id, action):
-        """
-        Include the connected Interface (if any).
-        """
-
-        # It's possible that an IPAddress can be deleted _after_ its parent Interface, in which case trying to resolve
-        # the interface will raise DoesNotExist.
-        try:
-            parent_obj = self.interface
-        except ObjectDoesNotExist:
-            parent_obj = None
-
-        ObjectChange(
-            user=user,
-            request_id=request_id,
-            changed_object=self,
-            related_object=parent_obj,
-            action=action,
-            object_data=serialize_object(self)
-        ).save()
 
     def to_csv(self):
 
         # Determine if this IP is primary for a Device
-        if self.family == 4 and getattr(self, 'primary_ip4_for', False):
+        if self.family == 4 and getattr(self, "primary_ip4_for", False):
             is_primary = True
-        elif self.family == 6 and getattr(self, 'primary_ip6_for', False):
+        elif self.family == 6 and getattr(self, "primary_ip6_for", False):
             is_primary = True
         else:
             is_primary = False
@@ -688,7 +670,6 @@ class IPAddress(ChangeLoggedModel, CustomFieldModel):
             self.virtual_machine.name if self.virtual_machine else None,
             self.interface.name if self.interface else None,
             is_primary,
-            self.dns_name,
             self.description,
         )
 
@@ -699,6 +680,7 @@ class IPAddress(ChangeLoggedModel, CustomFieldModel):
         """
         if self.address is not None:
             self.address.prefixlen = value
+
     mask_length = property(fset=_set_mask_length)
 
     @property
@@ -724,47 +706,39 @@ class VLANGroup(ChangeLoggedModel):
     """
     A VLAN group is an arbitrary collection of VLANs within which VLAN IDs and names must be unique.
     """
-    name = models.CharField(
-        max_length=50
-    )
+
+    name = models.CharField(max_length=50)
     slug = models.SlugField()
     site = models.ForeignKey(
-        to='dcim.Site',
+        to="dcim.Site",
         on_delete=models.PROTECT,
-        related_name='vlan_groups',
+        related_name="vlan_groups",
         blank=True,
-        null=True
+        null=True,
     )
 
-    csv_headers = ['name', 'slug', 'site']
+    csv_headers = ["name", "slug", "site"]
 
     class Meta:
-        ordering = ['site', 'name']
-        unique_together = [
-            ['site', 'name'],
-            ['site', 'slug'],
-        ]
-        verbose_name = 'VLAN group'
-        verbose_name_plural = 'VLAN groups'
+        ordering = ["site", "name"]
+        unique_together = [["site", "name"], ["site", "slug"]]
+        verbose_name = "VLAN group"
+        verbose_name_plural = "VLAN groups"
 
     def __str__(self):
         return self.name
 
     def get_absolute_url(self):
-        return reverse('ipam:vlangroup_vlans', args=[self.pk])
+        return reverse("ipam:vlangroup_vlans", args=[self.pk])
 
     def to_csv(self):
-        return (
-            self.name,
-            self.slug,
-            self.site.name if self.site else None,
-        )
+        return (self.name, self.slug, self.site.name if self.site else None)
 
     def get_next_available_vid(self):
         """
         Return the first available VLAN ID (1-4094) in the group.
         """
-        vids = [vlan['vid'] for vlan in self.vlans.order_by('vid').values('vid')]
+        vids = [vlan["vid"] for vlan in self.vlans.order_by("vid").values("vid")]
         for i in range(1, 4095):
             if i not in vids:
                 return i
@@ -780,82 +754,86 @@ class VLAN(ChangeLoggedModel, CustomFieldModel):
     Like Prefixes, each VLAN is assigned an operational status and optionally a user-defined Role. A VLAN can have zero
     or more Prefixes assigned to it.
     """
+
     site = models.ForeignKey(
-        to='dcim.Site',
+        to="dcim.Site",
         on_delete=models.PROTECT,
-        related_name='vlans',
+        related_name="vlans",
         blank=True,
-        null=True
+        null=True,
     )
     group = models.ForeignKey(
-        to='ipam.VLANGroup',
+        to="ipam.VLANGroup",
         on_delete=models.PROTECT,
-        related_name='vlans',
+        related_name="vlans",
         blank=True,
-        null=True
+        null=True,
     )
     vid = models.PositiveSmallIntegerField(
-        verbose_name='ID',
-        validators=[MinValueValidator(1), MaxValueValidator(4094)]
+        verbose_name="ID", validators=[MinValueValidator(1), MaxValueValidator(4094)]
     )
-    name = models.CharField(
-        max_length=64
-    )
+    name = models.CharField(max_length=64)
     tenant = models.ForeignKey(
-        to='tenancy.Tenant',
+        to="tenancy.Tenant",
         on_delete=models.PROTECT,
-        related_name='vlans',
+        related_name="vlans",
         blank=True,
-        null=True
+        null=True,
     )
     status = models.PositiveSmallIntegerField(
-        choices=VLAN_STATUS_CHOICES,
-        default=1,
-        verbose_name='Status'
+        choices=VLAN_STATUS_CHOICES, default=1, verbose_name="Status"
     )
     role = models.ForeignKey(
-        to='ipam.Role',
+        to="ipam.Role",
         on_delete=models.SET_NULL,
-        related_name='vlans',
+        related_name="vlans",
         blank=True,
-        null=True
+        null=True,
     )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
-    csv_headers = ['site', 'group_name', 'vid', 'name', 'tenant', 'status', 'role', 'description']
+    csv_headers = [
+        "site",
+        "group_name",
+        "vid",
+        "name",
+        "tenant",
+        "status",
+        "role",
+        "description",
+    ]
 
     class Meta:
-        ordering = ['site', 'group', 'vid']
-        unique_together = [
-            ['group', 'vid'],
-            ['group', 'name'],
-        ]
-        verbose_name = 'VLAN'
-        verbose_name_plural = 'VLANs'
+        ordering = ["site", "group", "vid"]
+        unique_together = [["group", "vid"], ["group", "name"]]
+        verbose_name = "VLAN"
+        verbose_name_plural = "VLANs"
 
     def __str__(self):
         return self.display_name or super().__str__()
 
     def get_absolute_url(self):
-        return reverse('ipam:vlan', args=[self.pk])
+        return reverse("ipam:vlan", args=[self.pk])
 
     def clean(self):
 
         # Validate VLAN group
         if self.group and self.group.site != self.site:
-            raise ValidationError({
-                'group': "VLAN group must belong to the assigned site ({}).".format(self.site)
-            })
+            raise ValidationError(
+                {
+                    "group": "VLAN group must belong to the assigned site ({}).".format(
+                        self.site
+                    )
+                }
+            )
 
     def to_csv(self):
         return (
@@ -881,8 +859,219 @@ class VLAN(ChangeLoggedModel, CustomFieldModel):
     def get_members(self):
         # Return all interfaces assigned to this VLAN
         return Interface.objects.filter(
-            Q(untagged_vlan_id=self.pk) |
-            Q(tagged_vlans=self.pk)
+            Q(untagged_vlan_id=self.pk) | Q(tagged_vlans=self.pk)
+        ).distinct()
+
+
+# PORT
+
+
+class PortTemplateGroup(ChangeLoggedModel):
+    """
+    A PortTemplate group is an arbitrary collection of PORTs within which PortTemplate IDs and names must be unique.
+    """
+
+    name = models.CharField(max_length=50)
+    slug = models.SlugField()
+    site = models.ForeignKey(
+        to="dcim.Site",
+        on_delete=models.PROTECT,
+        related_name="port_template_groups",
+        blank=True,
+        null=True,
+    )
+
+    csv_headers = ["name", "slug", "site"]
+
+    class Meta:
+        ordering = ["site", "name"]
+        unique_together = [["site", "name"], ["site", "slug"]]
+        verbose_name = "Port-templates group"
+        verbose_name_plural = "Port-templates groups"
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse("ipam:port_template_group_ports", args=[self.pk])
+
+    def to_csv(self):
+        return (self.name, self.slug, self.site.name if self.site else None)
+
+
+
+class PortTemplate(ChangeLoggedModel, CustomFieldModel):
+    """
+    A PORT is a distinct layer two forwarding domain identified by a 12-bit integer (1-4094). Each PORT must be assigned
+    to a Site, however PORT IDs need not be unique within a Site. A PORT may optionally be assigned to a PORTGroup,
+    within which all PORT IDs and names but be unique.
+
+    Like Prefixes, each PORT is assigned an operational status and optionally a user-defined Role. A PORT can have zero
+    or more Prefixes assigned to it.
+    """
+
+    site = models.ForeignKey(
+        to="dcim.Site",
+        on_delete=models.PROTECT,
+        related_name="PortTemplates",
+        blank=True,
+        null=True,
+    )
+    group = models.ForeignKey(
+        to="ipam.PortTemplateGroup",
+        on_delete=models.PROTECT,
+        related_name="PortTemplates",
+        blank=True,
+        null=True,
+    )
+    name = models.CharField(max_length=64)
+    tenant = models.ForeignKey(
+        to="tenancy.Tenant",
+        on_delete=models.PROTECT,
+        related_name="PortTemplates",
+        blank=True,
+        null=True,
+    )
+    status = models.PositiveSmallIntegerField(
+        choices=PORT_STATUS_CHOICES, default=1, verbose_name="Status"
+    )
+    types = models.PositiveSmallIntegerField(
+        choices=PORT_TYPES_CHOICES, default=1, verbose_name="Type", null=True
+    )
+    mode = models.PositiveSmallIntegerField(
+        choices=IFACE_MODE_CHOICES, blank=True, null=True
+    )
+    untagged_vlan = models.ForeignKey(
+        to="ipam.VLAN",
+        on_delete=models.SET_NULL,
+        related_name="roles_as_untagged",
+        null=True,
+        blank=True,
+        verbose_name="Untagged VLAN",
+    )
+    tagged_vlans = models.ManyToManyField(
+        to="ipam.VLAN",
+        related_name="roles_as_tagged",
+        blank=True,
+        verbose_name="Tagged VLANs",
+    )
+    role = models.ForeignKey(
+        to="ipam.Role",
+        on_delete=models.SET_NULL,
+        related_name="PortTemplates",
+        blank=True,
+        null=True,
+    )
+    description = models.CharField(max_length=100, blank=True)
+    custom_field_values = GenericRelation(
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
+    )
+
+    tags = TaggableManager()
+
+    csv_headers = [
+        "site",
+        "group",
+        "name",
+        "tenant",
+        "status",
+        "types",
+        "role",
+        "mode",
+        "description",
+    ]
+
+    class Meta:
+        ordering = ["site", "group", "name"]
+        verbose_name = "Port-template"
+        verbose_name_plural = "Port-templates"
+
+    def __str__(self):
+        return self.display_name or super().__str__()
+
+    def get_absolute_url(self):
+        return reverse("ipam:port_template", args=[self.pk])
+
+    def clean(self):
+
+        # Validate PORT group
+        if self.group and self.group.site != self.site:
+            raise ValidationError(
+                {
+                    "group": "PortTemplate group must belong to the assigned site ({}).".format(
+                        self.site
+                    )
+                }
+            )
+
+        # Validate untagged VLAN
+        if self.untagged_vlan and self.untagged_vlan.site not in [self.site, None]:
+            raise ValidationError(
+                {
+                    "untagged_vlan": "The untagged VLAN ({}) must belong to the same site as the interface's parent "
+                    "device/VM, or it must be global".format(self.untagged_vlan)
+                }
+            )
+
+        for interface_membere in self.get_members():
+            if (
+                (self.types != PORT_TYPES_ETHERNET and interface_membere.is_ethernet)
+                or (self.types != PORT_TYPES_LAG and interface_membere.is_lag)
+                or (self.types != PORT_TYPES_VIRTUAL and interface_membere.is_virtual)
+            ):
+                raise ValidationError(
+                    {
+                        "types": "The type of this port template must be same as the Form Factor of the interfaces({}) members ".format(
+                            interface_membere
+                        )
+                    }
+                )
+
+
+    def to_csv(self):
+        return (
+            self.site.name if self.site else None,
+            self.group.name if self.group else None,
+            self.name,
+            self.tenant.name if self.tenant else None,
+            self.get_status_display(),
+            self.role.name if self.role else None,
+            self.description,
+        )
+
+    def save(self, *args, **kwargs):
+
+        # Remove untagged VLAN assignment for non-802.1Q interfaces
+        if self.mode is None:
+            self.untagged_vlan = None
+
+        # Only "tagged" interfaces may have tagged VLANs assigned. ("tagged all" implies all VLANs are assigned.)
+        if self.pk and self.mode is not IFACE_MODE_TAGGED:
+            self.tagged_vlans.clear()
+        
+        return super().save(*args, **kwargs)
+
+    @property
+    def display_name(self):
+        if self.name:
+            return self.name
+        return None
+
+    def get_status_class(self):
+        return STATUS_CHOICE_CLASSES[self.status]
+
+    def get_members(self):
+        # Return all interfaces assigned to this VLAN
+        return Interface.objects.filter(
+            Q(port_template=self.pk)
+        ).distinct()
+    def set_vlan_to_members(self):
+        # Return all interfaces assigned to this VLAN
+       
+        interfaces = Interface.objects.all().filter(
+             Q(port_template=self.pk)
         ).distinct()
 
 
@@ -891,59 +1080,53 @@ class Service(ChangeLoggedModel, CustomFieldModel):
     A Service represents a layer-four service (e.g. HTTP or SSH) running on a Device or VirtualMachine. A Service may
     optionally be tied to one or more specific IPAddresses belonging to its parent.
     """
+
     device = models.ForeignKey(
-        to='dcim.Device',
+        to="dcim.Device",
         on_delete=models.CASCADE,
-        related_name='services',
-        verbose_name='device',
+        related_name="services",
+        verbose_name="device",
         null=True,
-        blank=True
+        blank=True,
     )
     virtual_machine = models.ForeignKey(
-        to='virtualization.VirtualMachine',
+        to="virtualization.VirtualMachine",
         on_delete=models.CASCADE,
-        related_name='services',
+        related_name="services",
         null=True,
-        blank=True
+        blank=True,
     )
-    name = models.CharField(
-        max_length=30
-    )
-    protocol = models.PositiveSmallIntegerField(
-        choices=IP_PROTOCOL_CHOICES
-    )
+    name = models.CharField(max_length=30)
+    protocol = models.PositiveSmallIntegerField(choices=IP_PROTOCOL_CHOICES)
     port = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(65535)],
-        verbose_name='Port number'
+        verbose_name="Port number",
     )
     ipaddresses = models.ManyToManyField(
-        to='ipam.IPAddress',
-        related_name='services',
+        to="ipam.IPAddress",
+        related_name="services",
         blank=True,
-        verbose_name='IP addresses'
+        verbose_name="IP addresses",
     )
-    description = models.CharField(
-        max_length=100,
-        blank=True
-    )
+    description = models.CharField(max_length=100, blank=True)
     custom_field_values = GenericRelation(
-        to='extras.CustomFieldValue',
-        content_type_field='obj_type',
-        object_id_field='obj_id'
+        to="extras.CustomFieldValue",
+        content_type_field="obj_type",
+        object_id_field="obj_id",
     )
 
-    tags = TaggableManager(through=TaggedItem)
+    tags = TaggableManager()
 
-    csv_headers = ['device', 'virtual_machine', 'name', 'protocol', 'description']
+    csv_headers = ["device", "virtual_machine", "name", "protocol", "description"]
 
     class Meta:
-        ordering = ['protocol', 'port']
+        ordering = ["protocol", "port"]
 
     def __str__(self):
-        return '{} ({}/{})'.format(self.name, self.port, self.get_protocol_display())
+        return "{} ({}/{})".format(self.name, self.port, self.get_protocol_display())
 
     def get_absolute_url(self):
-        return reverse('ipam:service', args=[self.pk])
+        return reverse("ipam:service", args=[self.pk])
 
     @property
     def parent(self):
@@ -953,9 +1136,13 @@ class Service(ChangeLoggedModel, CustomFieldModel):
 
         # A Service must belong to a Device *or* to a VirtualMachine
         if self.device and self.virtual_machine:
-            raise ValidationError("A service cannot be associated with both a device and a virtual machine.")
+            raise ValidationError(
+                "A service cannot be associated with both a device and a virtual machine."
+            )
         if not self.device and not self.virtual_machine:
-            raise ValidationError("A service must be associated with either a device or a virtual machine.")
+            raise ValidationError(
+                "A service must be associated with either a device or a virtual machine."
+            )
 
     def to_csv(self):
         return (

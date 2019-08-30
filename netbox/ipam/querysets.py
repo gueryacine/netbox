@@ -1,8 +1,7 @@
-from django.db.models import QuerySet
+from utilities.sql import NullsFirstQuerySet
 
 
-class PrefixQuerySet(QuerySet):
-
+class PrefixQuerySet(NullsFirstQuerySet):
     def annotate_depth(self, limit=None):
         """
         Iterate through a QuerySet of Prefixes and annotate the hierarchical level of each. While it would be preferable

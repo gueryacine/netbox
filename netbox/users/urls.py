@@ -1,18 +1,28 @@
-from django.urls import path
+from django.conf.urls import url
 
 from . import views
 
-app_name = 'user'
+app_name = "user"
 urlpatterns = [
-
-    path(r'profile/', views.ProfileView.as_view(), name='profile'),
-    path(r'password/', views.ChangePasswordView.as_view(), name='change_password'),
-    path(r'api-tokens/', views.TokenListView.as_view(), name='token_list'),
-    path(r'api-tokens/add/', views.TokenEditView.as_view(), name='token_add'),
-    path(r'api-tokens/<int:pk>/edit/', views.TokenEditView.as_view(), name='token_edit'),
-    path(r'api-tokens/<int:pk>/delete/', views.TokenDeleteView.as_view(), name='token_delete'),
-    path(r'user-key/', views.UserKeyView.as_view(), name='userkey'),
-    path(r'user-key/edit/', views.UserKeyEditView.as_view(), name='userkey_edit'),
-    path(r'session-key/delete/', views.SessionKeyDeleteView.as_view(), name='sessionkey_delete'),
-
+    url(r"^profile/$", views.ProfileView.as_view(), name="profile"),
+    url(r"^password/$", views.ChangePasswordView.as_view(), name="change_password"),
+    url(r"^api-tokens/$", views.TokenListView.as_view(), name="token_list"),
+    url(r"^api-tokens/add/$", views.TokenEditView.as_view(), name="token_add"),
+    url(
+        r"^api-tokens/(?P<pk>\d+)/edit/$",
+        views.TokenEditView.as_view(),
+        name="token_edit",
+    ),
+    url(
+        r"^api-tokens/(?P<pk>\d+)/delete/$",
+        views.TokenDeleteView.as_view(),
+        name="token_delete",
+    ),
+    url(r"^user-key/$", views.UserKeyView.as_view(), name="userkey"),
+    url(r"^user-key/edit/$", views.UserKeyEditView.as_view(), name="userkey_edit"),
+    url(
+        r"^session-key/delete/$",
+        views.SessionKeyDeleteView.as_view(),
+        name="sessionkey_delete",
+    ),
 ]

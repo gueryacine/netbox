@@ -2,7 +2,7 @@
 {% load helpers %}
 
 {% block header %}
-    <div class="row noprint">
+    <div class="row">
         <div class="col-md-12">
             <ol class="breadcrumb">
                 {% if interface.device %}
@@ -15,7 +15,7 @@
             </ol>
         </div>
     </div>
-    <div class="pull-right noprint">
+    <div class="pull-right">
         {% if perms.dcim.change_interface %}
             <a href="{% if interface.device %}{% url 'dcim:interface_edit' pk=interface.pk %}{% else %}{% url 'virtualization:interface_edit' pk=interface.pk %}{% endif %}" class="btn btn-warning">
                 <span class="fa fa-pencil" aria-hidden="true"></span> Edit this interface
@@ -32,11 +32,9 @@
         <li role="presentation"{% if not active_tab %} class="active"{% endif %}>
             <a href="{{ interface.get_absolute_url }}">Interface</a>
         </li>
-        {% if perms.extras.view_objectchange %}
-            <li role="presentation"{% if active_tab == 'changelog' %} class="active"{% endif %}>
-                <a href="{% url 'dcim:interface_changelog' pk=interface.pk %}">Changelog</a>
-            </li>
-        {% endif %}
+        <li role="presentation"{% if active_tab == 'changelog' %} class="active"{% endif %}>
+            <a href="{% url 'dcim:interface_changelog' pk=interface.pk %}">Changelog</a>
+        </li>
     </ul>
 {% endblock %}
 
@@ -60,7 +58,7 @@
                 </tr>
                 <tr>
                     <td>Type</td>
-                    <td>{{ interface.get_type_display }}</td>
+                    <td>{{ interface.get_form_factor_display }}</td>
                 </tr>
                 <tr>
                     <td>Enabled</td>
@@ -95,6 +93,10 @@
                     <td>{{ interface.mac_address|placeholder }}</span></td>
                 </tr>
                 <tr>
+                    <td>Port-template</td>
+                    <td>{{ interface.port_template.name }}</td>
+                </tr>
+                <tr>
                     <td>802.1Q Mode</td>
                     <td>{{ interface.get_mode_display }}</td>
                 </tr>
@@ -125,7 +127,7 @@
                             </tr>
                             <tr>
                                 <td>Type</td>
-                                <td>{{ connected_interface.get_type_display }}</td>
+                                <td>{{ connected_interface.get_form_factor_display }}</td>
                             </tr>
                             <tr>
                                 <td>Enabled</td>
@@ -227,7 +229,7 @@
                                     <a href="{{ member.get_absolute_url }}">{{ member }}</a>
                                 </td>
                                 <td>
-                                    {{ member.get_type_display }}
+                                    {{ member.get_form_factor_display }}
                                 </td>
                             </tr>
                         {% empty %}
@@ -246,9 +248,29 @@
         {% include 'panel_table.html' with table=ipaddress_table heading="IP Addresses" %}
     </div>
 </div>
+{% if interface.port_template %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel-default" id="vlans_panel">
+            <div class="panel-heading"><strong>VLANs</strong></div>
+                {% include 'ipam/inc/port_template_vlans_on_interface.html' %}
+            <div class="panel-footer text-right">
+                <a href="{% url 'ipam:port_template_assign_vlans' pk=interface.port_template.pk %}?return_url={% url 'dcim:interface' pk=interface.pk %}" class="btn btn-primary btn-xs{% if form.instance.port_template.mode == 100 and form.instance.port_template.untagged_vlan %} disabled{% endif %}">
+                    <i class="glyphicon glyphicon-plus"></i> Update VLANs
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
 <div class="row">
     <div class="col-md-12">
         {% include 'panel_table.html' with table=vlan_table heading="VLANs" %}
     </div>
 </div>
+{% endif %}
+
+
+
 {% endblock %}

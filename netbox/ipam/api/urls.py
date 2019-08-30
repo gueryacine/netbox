@@ -7,38 +7,43 @@ class IPAMRootView(routers.APIRootView):
     """
     IPAM API root view
     """
+
     def get_view_name(self):
-        return 'IPAM'
+        return "IPAM"
 
 
 router = routers.DefaultRouter()
 router.APIRootView = IPAMRootView
 
 # Field choices
-router.register(r'_choices', views.IPAMFieldChoicesViewSet, basename='field-choice')
+router.register(r"_choices", views.IPAMFieldChoicesViewSet, basename="field-choice")
 
 # VRFs
-router.register(r'vrfs', views.VRFViewSet)
+router.register(r"vrfs", views.VRFViewSet)
 
 # RIRs
-router.register(r'rirs', views.RIRViewSet)
+router.register(r"rirs", views.RIRViewSet)
 
 # Aggregates
-router.register(r'aggregates', views.AggregateViewSet)
+router.register(r"aggregates", views.AggregateViewSet)
 
 # Prefixes
-router.register(r'roles', views.RoleViewSet)
-router.register(r'prefixes', views.PrefixViewSet)
+router.register(r"roles", views.RoleViewSet)
+router.register(r"prefixes", views.PrefixViewSet)
 
 # IP addresses
-router.register(r'ip-addresses', views.IPAddressViewSet)
+router.register(r"ip-addresses", views.IPAddressViewSet)
 
 # VLANs
-router.register(r'vlan-groups', views.VLANGroupViewSet)
-router.register(r'vlans', views.VLANViewSet)
+router.register(r"vlan-groups", views.VLANGroupViewSet)
+router.register(r"vlans", views.VLANViewSet)
 
+
+# PortTemplatess
+router.register(r"port-template-groups", views.PortTemplatesGroupViewSet)
+router.register(r"port-template", views.PortTemplatesViewSet)
 # Services
-router.register(r'services', views.ServiceViewSet)
+router.register(r"services", views.ServiceViewSet)
 
-app_name = 'ipam-api'
+app_name = "ipam-api"
 urlpatterns = router.urls

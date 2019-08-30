@@ -13,12 +13,11 @@ from .nested_serializers import *
 # Secrets
 #
 
-class SecretRoleSerializer(ValidatedModelSerializer):
-    secret_count = serializers.IntegerField(read_only=True)
 
+class SecretRoleSerializer(ValidatedModelSerializer):
     class Meta:
         model = SecretRole
-        fields = ['id', 'name', 'slug', 'secret_count']
+        fields = ["id", "name", "slug"]
 
 
 class SecretSerializer(TaggitSerializer, CustomFieldModelSerializer):
@@ -30,22 +29,33 @@ class SecretSerializer(TaggitSerializer, CustomFieldModelSerializer):
     class Meta:
         model = Secret
         fields = [
-            'id', 'device', 'role', 'name', 'plaintext', 'hash', 'tags', 'custom_fields', 'created', 'last_updated',
+            "id",
+            "device",
+            "role",
+            "name",
+            "plaintext",
+            "hash",
+            "tags",
+            "custom_fields",
+            "created",
+            "last_updated",
         ]
         validators = []
 
     def validate(self, data):
 
         # Encrypt plaintext data using the master key provided from the view context
-        if data.get('plaintext'):
-            s = Secret(plaintext=data['plaintext'])
-            s.encrypt(self.context['master_key'])
-            data['ciphertext'] = s.ciphertext
-            data['hash'] = s.hash
+        if data.get("plaintext"):
+            s = Secret(plaintext=data["plaintext"])
+            s.encrypt(self.context["master_key"])
+            data["ciphertext"] = s.ciphertext
+            data["hash"] = s.hash
 
         # Validate uniqueness of name if one has been provided.
-        if data.get('name'):
-            validator = UniqueTogetherValidator(queryset=Secret.objects.all(), fields=('device', 'role', 'name'))
+        if data.get("name"):
+            validator = UniqueTogetherValidator(
+                queryset=Secret.objects.all(), fields=("device", "role", "name")
+            )
             validator.set_context(self)
             validator(data)
 

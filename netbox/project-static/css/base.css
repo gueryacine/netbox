@@ -42,28 +42,15 @@ footer p {
     }
 }
 
-/* Hide the search bar in the navigation menu on displays less than 1250px wide */
-@media (max-width: 1249px) {
+/* Hide the search bar in the navigation menu on displays less than 1200px wide */
+@media (max-width: 1199px) {
     #navbar_search {
         display: none;
     }
 }
 
-/* Printer friendly CSS class and various fixes for printing. */
-@media print {
-    body {
-        padding-top: 0px;
-    }
-    a[href]:after {
-        content: none !important;
-    }
-    .noprint {
-        display: none !important;
-    }
-}
-
-/* Collapse the nav menu on displays less than 980px wide */
-@media (max-width: 979px) {
+/* Collapse the nav menu on displays less than 960px wide */
+@media (max-width: 959px) {
     .navbar-header {
         float: none;
     }
@@ -559,7 +546,6 @@ table.report th a {
 .color-block {
     display: block;
     width: 80px;
-    border: 1px solid grey;
 }
 .text-nowrap {
     white-space: nowrap;
@@ -586,7 +572,6 @@ ul.nav-tabs, ul.nav-pills {
 /* Fix progress bar margin inside table cells */
 td .progress {
     margin-bottom: 0;
-    min-width: 100px;
 }
 textarea {
     font-family: Consolas, Lucida Console, monospace;
