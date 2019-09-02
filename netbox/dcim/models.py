@@ -24,8 +24,6 @@ from .constants import *
 from .exceptions import LoopDetected
 from .fields import ASNField, MACAddressField
 from .managers import InterfaceManager
-from django.db.models.signals import pre_save, post_save
-from django.dispatch import receiver
 
 class ComponentTemplateModel(models.Model):
 
@@ -2415,15 +2413,6 @@ class Interface(CableTermination, ComponentModel):
     @property
     def count_ipaddresses(self):
         return self.ip_addresses.count()
-
-@receiver(pre_save, sender=Interface)
-def signal_port_are_clear(sender, instance, update_fields=None, **kwargs):
-    if instance.pk is not None:
-        old_instance = Interface.objects.get(id=instance.id)
-        if old_instance.port_template is not None and instance.port_template is None:
-            instance.mode = None
-            instance.untagged_vlan = None
-            instance.tagged_vlans.all().delete()
 
 
 #

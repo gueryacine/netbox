@@ -3,6 +3,8 @@ from django.dispatch import receiver
 
 from .models import Cable, Device, VirtualChassis
 
+from django.db.models.signals import pre_save
+from .models import Interface
 
 @receiver(post_save, sender=VirtualChassis)
 def assign_virtualchassis_master(instance, created, **kwargs):
@@ -69,3 +71,14 @@ def nullify_connected_endpoints(instance, **kwargs):
         endpoint_b.connected_endpoint = None
         endpoint_b.connection_status = None
         endpoint_b.save()
+
+
+@receiver(pre_save, sender=Interface)
+def signal_port_are_clear(sender, instance, update_fields=None, **kwargs):
+
+    if instance.pk is not None:
+        old_instance = Interface.objects.get(id=instance.id)
+        if old_instance.port_template is not None and instance.port_template is None:
+            instance.mode = None
+            instance.untagged_vlan = None
+            instance.tagged_vlans.all().delete()
