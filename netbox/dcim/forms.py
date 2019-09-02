@@ -2344,6 +2344,10 @@ class InterfaceCreateForm(ComponentForm, forms.Form):
                 group__in=[
                     port_template_group for port_template_group in self.parent.port_template_groups.all()]
             )
+            self.fields['port_template'].queryset = PortTemplate.objects.filter(
+                group__in=[
+                    port_template_group for port_template_group in self.parent.port_template_groups.all()]
+            )
         else:
             self.fields['lag'].queryset = Interface.objects.none()
             self.fields['port_template'].queryset = Interface.objects.none()

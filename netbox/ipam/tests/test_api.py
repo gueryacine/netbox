@@ -1172,6 +1172,199 @@ class PortTemplateTest(APITestCase):
         self.assertEqual(PortTemplate.objects.count(), 2)
 
 
+
+class PortTemplateGroupTest(APITestCase):
+    def setUp(self):
+
+        super().setUp()
+
+        self.porttemplategroup1 = PortTemplateGroup.objects.create(
+            name='Test PortTemplate Group 1', slug='test-porttemplate-group-1'
+        )
+        self.porttemplategroup2 = PortTemplateGroup.objects.create(
+            name='Test PortTemplate Group 2', slug='test-porttemplate-group-2'
+        )
+        self.porttemplategroup3 = PortTemplateGroup.objects.create(
+            name='Test PortTemplate Group 3', slug='test-porttemplate-group-3'
+        )
+
+    def test_get_porttemplategroup(self):
+
+        url = reverse('ipam-api:porttemplategroup-detail',
+                      kwargs={'pk': self.porttemplategroup1.pk})
+        response = self.client.get(url, **self.header)
+
+        self.assertEqual(response.data['name'], self.porttemplategroup1.name)
+
+    def test_list_porttemplategroups(self):
+
+        url = reverse('ipam-api:porttemplategroup-list')
+        response = self.client.get(url, **self.header)
+
+        self.assertEqual(response.data['count'], 3)
+
+    def test_list_porttemplategroups_brief(self):
+
+        url = reverse('ipam-api:porttemplategroup-list')
+        response = self.client.get('{}?brief=1'.format(url), **self.header)
+
+        self.assertEqual(
+            sorted(response.data['results'][0]), ['id', 'name', 'slug', 'url']
+        )
+
+    def test_create_porttemplategroup(self):
+
+        data = {'name': 'Test PortTemplate Group 4',
+                'slug': 'test-porttemplate-group-4'}
+
+        url = reverse('ipam-api:porttemplategroup-list')
+        response = self.client.post(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_201_CREATED)
+        self.assertEqual(PortTemplateGroup.objects.count(), 4)
+        porttemplategroup4 = PortTemplateGroup.objects.get(
+            pk=response.data['id'])
+        self.assertEqual(porttemplategroup4.name, data['name'])
+        self.assertEqual(porttemplategroup4.slug, data['slug'])
+
+    def test_create_porttemplategroup_bulk(self):
+
+        data = [
+            {'name': 'Test PortTemplate Group 4', 'slug': 'test-porttemplate-group-4'},
+            {'name': 'Test PortTemplate Group 5', 'slug': 'test-porttemplate-group-5'},
+            {'name': 'Test PortTemplate Group 6', 'slug': 'test-porttemplate-group-6'},
+        ]
+
+        url = reverse('ipam-api:porttemplategroup-list')
+        response = self.client.post(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_201_CREATED)
+        self.assertEqual(PortTemplateGroup.objects.count(), 6)
+        self.assertEqual(response.data[0]['name'], data[0]['name'])
+        self.assertEqual(response.data[1]['name'], data[1]['name'])
+        self.assertEqual(response.data[2]['name'], data[2]['name'])
+
+    def test_update_porttemplategroup(self):
+
+        data = {'name': 'Test PortTemplate Group X',
+                'slug': 'test-porttemplate-group-x'}
+
+        url = reverse('ipam-api:porttemplategroup-detail',
+                      kwargs={'pk': self.porttemplategroup1.pk})
+        response = self.client.put(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_200_OK)
+        self.assertEqual(PortTemplateGroup.objects.count(), 3)
+        porttemplategroup1 = PortTemplateGroup.objects.get(
+            pk=response.data['id'])
+        self.assertEqual(porttemplategroup1.name, data['name'])
+        self.assertEqual(porttemplategroup1.slug, data['slug'])
+
+    def test_delete_porttemplategroup(self):
+
+        url = reverse('ipam-api:porttemplategroup-detail',
+                      kwargs={'pk': self.porttemplategroup1.pk})
+        response = self.client.delete(url, **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(PortTemplateGroup.objects.count(), 2)
+
+
+class PortTemplateTest(APITestCase):
+    def setUp(self):
+
+        super().setUp()
+
+        self.porttemplate1 = PortTemplate.objects.create(
+            name='Test porttemplate 1')
+        self.porttemplate2 = PortTemplate.objects.create(
+            name='Test porttemplate 2')
+        self.porttemplate3 = PortTemplate.objects.create(
+            name='Test porttemplate 3')
+
+    def test_get_porttemplate(self):
+
+        url = reverse(
+            'ipam-api:porttemplate-detail',
+            kwargs={
+                'pk': self.porttemplate1.pk})
+        response = self.client.get(url, **self.header)
+
+        self.assertEqual(response.data['name'], self.porttemplate1.name)
+
+    def test_list_porttemplates(self):
+
+        url = reverse('ipam-api:porttemplate-list')
+        response = self.client.get(url, **self.header)
+
+        self.assertEqual(response.data['count'], 3)
+
+    def test_list_porttemplates_brief(self):
+
+        url = reverse('ipam-api:porttemplate-list')
+        response = self.client.get('{}?brief=1'.format(url), **self.header)
+
+        self.assertEqual(
+            sorted(
+                response.data['results'][0]), ['display_name', 'id', 'name', 'url']
+        )
+
+    def test_create_porttemplate(self):
+
+        data = {'vid': 4, 'name': 'Test porttemplate 4'}
+
+        url = reverse('ipam-api:porttemplate-list')
+        response = self.client.post(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_201_CREATED)
+        self.assertEqual(PortTemplate.objects.count(), 4)
+        porttemplate4 = PortTemplate.objects.get(pk=response.data['id'])
+        self.assertEqual(porttemplate4.name, data['name'])
+
+    def test_create_porttemplate_bulk(self):
+
+        data = [
+            {'name': 'Test porttemplate 4'},
+            {'name': 'Test porttemplate 5'},
+            {'name': 'Test porttemplate 6'},
+        ]
+
+        url = reverse('ipam-api:porttemplate-list')
+        response = self.client.post(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_201_CREATED)
+        self.assertEqual(PortTemplate.objects.count(), 6)
+        self.assertEqual(response.data[0]['name'], data[0]['name'])
+        self.assertEqual(response.data[1]['name'], data[1]['name'])
+        self.assertEqual(response.data[2]['name'], data[2]['name'])
+
+    def test_update_porttemplate(self):
+
+        data = {'name': 'Test porttemplate X'}
+
+        url = reverse(
+            'ipam-api:porttemplate-detail',
+            kwargs={
+                'pk': self.porttemplate1.pk})
+        response = self.client.put(url, data, format='json', **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_200_OK)
+        self.assertEqual(PortTemplate.objects.count(), 3)
+        porttemplate1 = PortTemplate.objects.get(pk=response.data['id'])
+        self.assertEqual(porttemplate1.name, data['name'])
+
+    def test_delete_porttemplate(self):
+
+        url = reverse(
+            'ipam-api:porttemplate-detail',
+            kwargs={
+                'pk': self.porttemplate1.pk})
+        response = self.client.delete(url, **self.header)
+
+        self.assertHttpStatus(response, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(PortTemplate.objects.count(), 2)
+
+
 class ServiceTest(APITestCase):
 
     def setUp(self):

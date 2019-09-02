@@ -2405,6 +2405,10 @@ class Interface(CableTermination, ComponentModel):
         return self.form_factor in ETHERNET_IFACE_TYPES
 
     @property
+    def is_ethernet(self):
+        return self.form_factor in ETHERNET_IFACE_TYPES
+
+    @property
     def is_lag(self):
         return self.type == IFACE_TYPE_LAG
 
