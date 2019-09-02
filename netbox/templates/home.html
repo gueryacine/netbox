@@ -201,6 +201,11 @@
                     {% endif %}
                     <p class="list-group-item-text text-muted">Layer two domains, identified by VLAN ID</p>
                 </div>
+                <div class="list-group-item">
+                    <span class="badge pull-right">{{ stats.port_template_count }}</span>
+                    <h4 class="list-group-item-heading"><a href="{% url 'ipam:port_template_list' %}">Port-templates</a></h4>
+                    <p class="list-group-item-text text-muted">Port template, Template to Link with interfaces</p>
+                </div>
             </div>
         </div>
         <div class="panel panel-default">

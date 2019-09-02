@@ -296,6 +296,14 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
         null=True,
         verbose_name='VLAN'
     )
+    port_template = models.ForeignKey(
+        to="ipam.PortTemplate",
+        on_delete=models.PROTECT,
+        related_name="prefixes",
+        blank=True,
+        null=True,
+        verbose_name="port_template",
+    )
     status = models.PositiveSmallIntegerField(
         choices=PREFIX_STATUS_CHOICES,
         default=PREFIX_STATUS_ACTIVE,
@@ -329,7 +337,7 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
     tags = TaggableManager(through=TaggedItem)
 
     csv_headers = [
-        'prefix', 'vrf', 'tenant', 'site', 'vlan_group', 'vlan_vid', 'status', 'role', 'is_pool', 'description',
+        'prefix', 'vrf', 'tenant', 'site', 'vlan_group', 'vlan_vid', 'status', 'role', 'is_pool', 'description', 'port_template_group', 'port_template_name'
     ]
 
     class Meta:
@@ -387,6 +395,8 @@ class Prefix(ChangeLoggedModel, CustomFieldModel):
             self.site.name if self.site else None,
             self.vlan.group.name if self.vlan and self.vlan.group else None,
             self.vlan.vid if self.vlan else None,
+            self.port_template.group.name if self.port_template and self.port_template.group else None,
+            self.port_template.name if self.port_template else None,
             self.get_status_display(),
             self.role.name if self.role else None,
             self.is_pool,
@@ -883,6 +893,217 @@ class VLAN(ChangeLoggedModel, CustomFieldModel):
         return Interface.objects.filter(
             Q(untagged_vlan_id=self.pk) |
             Q(tagged_vlans=self.pk)
+        ).distinct()
+
+
+class PortTemplateGroup(ChangeLoggedModel):
+    """
+    A PortTemplate group is an arbitrary collection of PORTs within which PortTemplate IDs and names must be unique.
+    """
+
+    name = models.CharField(max_length=50)
+    slug = models.SlugField()
+    site = models.ForeignKey(
+        to='dcim.Site',
+        on_delete=models.PROTECT,
+        related_name='port_template_groups',
+        blank=True,
+        null=True,
+    )
+
+    csv_headers = ['name', 'slug', 'site']
+
+    class Meta:
+        ordering = ['site', 'name']
+        unique_together = [['site', 'name'], ['site', 'slug']]
+        verbose_name = 'Port-templates group'
+        verbose_name_plural = 'Port-templates groups'
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('ipam:port_template_group_ports', args=[self.pk])
+
+    def to_csv(self):
+        return (self.name, self.slug, self.site.name if self.site else None)
+
+
+class PortTemplate(ChangeLoggedModel, CustomFieldModel):
+    """
+    A PORT is a distinct layer two forwarding domain identified by a 12-bit integer (1-4094). Each PORT must be assigned
+    to a Site, however PORT IDs need not be unique within a Site. A PORT may optionally be assigned to a PORTGroup,
+    within which all PORT IDs and names but be unique.
+
+    Like Prefixes, each PORT is assigned an operational status and optionally a user-defined Role. A PORT can have zero
+    or more Prefixes assigned to it.
+    """
+
+    site = models.ForeignKey(
+        to='dcim.Site',
+        on_delete=models.PROTECT,
+        related_name='PortTemplates',
+        blank=True,
+        null=True,
+    )
+    group = models.ForeignKey(
+        to='ipam.PortTemplateGroup',
+        on_delete=models.PROTECT,
+        related_name='PortTemplates',
+        blank=True,
+        null=True,
+    )
+    name = models.CharField(max_length=64)
+    tenant = models.ForeignKey(
+        to='tenancy.Tenant',
+        on_delete=models.PROTECT,
+        related_name='PortTemplates',
+        blank=True,
+        null=True,
+    )
+    status = models.PositiveSmallIntegerField(
+        choices=PORT_STATUS_CHOICES, default=1, verbose_name='Status'
+    )
+    types = models.PositiveSmallIntegerField(
+        choices=PORT_TYPES_CHOICES, default=1, verbose_name='Type', null=True
+    )
+    mode = models.PositiveSmallIntegerField(
+        choices=IFACE_MODE_CHOICES, blank=True, null=True
+    )
+    untagged_vlan = models.ForeignKey(
+        to='ipam.VLAN',
+        on_delete=models.SET_NULL,
+        related_name='roles_as_untagged',
+        null=True,
+        blank=True,
+        verbose_name='Untagged VLAN',
+    )
+    tagged_vlans = models.ManyToManyField(
+        to='ipam.VLAN',
+        related_name='roles_as_tagged',
+        blank=True,
+        verbose_name='Tagged VLANs',
+    )
+    role = models.ForeignKey(
+        to='ipam.Role',
+        on_delete=models.SET_NULL,
+        related_name='PortTemplates',
+        blank=True,
+        null=True,
+    )
+    description = models.CharField(max_length=100, blank=True)
+    custom_field_values = GenericRelation(
+        to='extras.CustomFieldValue',
+        content_type_field='obj_type',
+        object_id_field='obj_id',
+    )
+
+    tags = TaggableManager()
+
+    csv_headers = [
+        'site',
+        'group',
+        'name',
+        'tenant',
+        'status',
+        'types',
+        'role',
+        'mode',
+        'description',
+    ]
+
+    class Meta:
+        ordering = ['site', 'group', 'name']
+        verbose_name = 'Port-template'
+        verbose_name_plural = 'Port-templates'
+
+    def __str__(self):
+        return self.display_name or super().__str__()
+
+    def get_absolute_url(self):
+        return reverse('ipam:port_template', args=[self.pk])
+
+    def clean(self):
+
+        # Validate PORT group
+        if self.group and self.group.site != self.site:
+            raise ValidationError(
+                {
+                    'group': 'PortTemplate group must belong to the assigned site ({}).'.format(
+                        self.site
+                    )
+                }
+            )
+
+        # Validate untagged VLAN
+        if self.untagged_vlan and self.untagged_vlan.site not in [
+                self.site, None]:
+            raise ValidationError(
+                {
+                    'untagged_vlan': 'The untagged VLAN ({}) must belong to the same site as the interface\'s parent '
+                    'device/VM, or it must be global'.format(self.untagged_vlan)
+                }
+            )
+        if self.get_members() != None : 
+            for interface_membere in self.get_members():
+                if (
+                    (self.types != PORT_TYPES_ETHERNET and interface_membere.is_ethernet)
+                    or (self.types != PORT_TYPES_LAG and interface_membere.is_lag)
+                    or (self.types != PORT_TYPES_VIRTUAL and interface_membere.is_virtual)
+                ):
+                    raise ValidationError(
+                        {
+                            'types': 'The type of this port template must be same as the Form Factor of the interfaces({}) members '.format(
+                                interface_membere
+                            )
+                        }
+                    )
+
+    def to_csv(self):
+        return (
+            self.site.name if self.site else None,
+            self.group.name if self.group else None,
+            self.name,
+            self.tenant.name if self.tenant else None,
+            self.get_status_display(),
+            self.role.name if self.role else None,
+            self.description,
+        )
+
+    def save(self, *args, **kwargs):
+
+        # Remove untagged VLAN assignment for non-802.1Q interfaces
+        if self.mode is None:
+            self.untagged_vlan = None
+
+        # Only 'tagged' interfaces may have tagged VLANs assigned. ('tagged
+        # all' implies all VLANs are assigned.)
+        if self.pk and self.mode is not IFACE_MODE_TAGGED:
+            self.tagged_vlans.clear()
+
+        return super().save(*args, **kwargs)
+
+    @property
+    def display_name(self):
+        if self.name:
+            return self.name
+        return None
+
+    def get_status_class(self):
+        return STATUS_CHOICE_CLASSES[self.status]
+
+    def get_members(self):
+        if(self.pk != None):
+        # Return all interfaces assigned to this PortTemplate
+            return Interface.objects.all().filter(
+                Q(port_template=self.pk)
+            ).distinct()
+        else:
+            return None
+
+    def set_vlan_to_members(self):
+        interfaces = Interface.objects.all().filter(
+            Q(port_template=self.pk)
         ).distinct()
 
 

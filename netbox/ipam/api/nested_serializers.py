@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, VLAN, VLANGroup, VRF
+from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 from utilities.api import WritableNestedSerializer
 
 __all__ = [
@@ -11,6 +11,8 @@ __all__ = [
     'NestedRoleSerializer',
     'NestedVLANGroupSerializer',
     'NestedVLANSerializer',
+    "NestedPortTemplateGroupSerializer",
+    "NestedPortTemplateSerializer",
     'NestedVRFSerializer',
 ]
 
@@ -80,6 +82,24 @@ class NestedVLANSerializer(WritableNestedSerializer):
         fields = ['id', 'url', 'vid', 'name', 'display_name']
 
 
+class NestedPortTemplateGroupSerializer(WritableNestedSerializer):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='ipam-api:porttemplategroup-detail')
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = ['id', 'url', 'name', 'slug']
+
+
+class NestedPortTemplateSerializer(WritableNestedSerializer):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='ipam-api:porttemplate-detail')
+
+    class Meta:
+        model = PortTemplate
+        fields = ['id', 'url', 'name', 'display_name']
+
+        
 #
 # Prefixes
 #

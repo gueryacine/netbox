@@ -18,8 +18,8 @@ from django.views.generic import View
 from circuits.models import Circuit
 from extras.models import Graph, TopologyMap, GRAPH_TYPE_INTERFACE, GRAPH_TYPE_SITE
 from extras.views import ObjectConfigContextView
-from ipam.models import Prefix, VLAN
-from ipam.tables import InterfaceIPAddressTable, InterfaceVLANTable
+from ipam.models import Prefix, VLAN , PortTemplateGroup, PortTemplate
+from ipam.tables import InterfaceIPAddressTable, InterfaceVLANTable, PortTemplateVLANTable, InterfacePortTemplateTable
 from utilities.forms import ConfirmationForm
 from utilities.paginator import EnhancedPaginator
 from utilities.utils import csv_format
@@ -203,6 +203,7 @@ class SiteView(PermissionRequiredMixin, View):
             'device_count': Device.objects.filter(site=site).count(),
             'prefix_count': Prefix.objects.filter(site=site).count(),
             'vlan_count': VLAN.objects.filter(site=site).count(),
+            'port_template_count': PortTemplate.objects.filter(site=site).count(),
             'circuit_count': Circuit.objects.filter(terminations__site=site).count(),
             'vm_count': VirtualMachine.objects.filter(cluster__site=site).count(),
         }
@@ -952,6 +953,9 @@ class DeviceView(PermissionRequiredMixin, View):
             'cable__termination_a', 'cable__termination_b', 'ip_addresses', 'tags'
         )
 
+        # port_group
+        port_template_groups = device.port_template_groups.all()
+
         # Front ports
         front_ports = device.frontports.select_related('rear_port', 'cable')
 
@@ -986,6 +990,7 @@ class DeviceView(PermissionRequiredMixin, View):
             'power_ports': power_ports,
             'poweroutlets': poweroutlets,
             'interfaces': interfaces,
+            'port_template_groups': port_template_groups,
             'device_bays': device_bays,
             'front_ports': front_ports,
             'rear_ports': rear_ports,
@@ -1316,17 +1321,22 @@ class InterfaceView(PermissionRequiredMixin, View):
 
         # Get assigned VLANs and annotate whether each is tagged or untagged
         vlans = []
-        if interface.untagged_vlan is not None:
-            vlans.append(interface.untagged_vlan)
-            vlans[0].tagged = False
-        for vlan in interface.tagged_vlans.select_related('site', 'group', 'tenant', 'role'):
-            vlan.tagged = True
-            vlans.append(vlan)
-        vlan_table = InterfaceVLANTable(
-            interface=interface,
-            data=vlans,
-            orderable=False
-        )
+        if interface.port_template is not None:
+            vlan_table = InterfacePortTemplateTable(
+                interface=interface, data=vlans, orderable=False
+            )
+        else:
+            if interface.untagged_vlan is not None:
+                vlans.append(interface.untagged_vlan)
+                vlans[0].tagged = False
+            for vlan in interface.tagged_vlans.select_related('site', 'group', 'tenant', 'role'):
+                vlan.tagged = True
+                vlans.append(vlan)
+            vlan_table = InterfaceVLANTable(
+                interface=interface,
+                data=vlans,
+                orderable=False
+            )
 
         return render(request, 'dcim/interface.html', {
             'interface': interface,
@@ -2371,3 +2381,7 @@ class PowerFeedBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
     filter = filters.PowerFeedFilter
     table = tables.PowerFeedTable
     default_return_url = 'dcim:powerfeed_list'
+class DeviceAssignPortTemplatesGroupsView(ObjectEditView):
+
+    model = Device
+    model_form = forms.DeviceAssignPortTemplatesGroupsForm

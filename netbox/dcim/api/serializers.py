@@ -13,7 +13,7 @@ from dcim.models import (
     VirtualChassis,
 )
 from extras.api.customfields import CustomFieldModelSerializer
-from ipam.api.nested_serializers import NestedIPAddressSerializer, NestedVLANSerializer
+from ipam.api.nested_serializers import NestedIPAddressSerializer, NestedVLANSerializer, NestedPortTemplateGroupSerializer, NestedPortTemplateSerializer
 from ipam.models import VLAN
 from tenancy.api.nested_serializers import NestedTenantSerializer
 from users.api.nested_serializers import NestedUserSerializer
@@ -22,7 +22,7 @@ from utilities.api import (
     WritableNestedSerializer, get_serializer_for_model,
 )
 from virtualization.api.nested_serializers import NestedClusterSerializer
-from .nested_serializers import *
+from .nested_serializers import * 
 
 
 class ConnectedEndpointSerializer(ValidatedModelSerializer):
@@ -318,14 +318,15 @@ class DeviceSerializer(TaggitSerializer, CustomFieldModelSerializer):
     cluster = NestedClusterSerializer(required=False, allow_null=True)
     virtual_chassis = NestedVirtualChassisSerializer(required=False, allow_null=True)
     tags = TagListSerializerField(required=False)
-
+    port_template_groups = NestedPortTemplateGroupSerializer(read_only=True, many=True)
+    
     class Meta:
         model = Device
         fields = [
             'id', 'name', 'display_name', 'device_type', 'device_role', 'tenant', 'platform', 'serial', 'asset_tag',
             'site', 'rack', 'position', 'face', 'parent_device', 'status', 'primary_ip', 'primary_ip4', 'primary_ip6',
             'cluster', 'virtual_chassis', 'vc_position', 'vc_priority', 'comments', 'local_context_data', 'tags',
-            'custom_fields', 'created', 'last_updated',
+            'custom_fields', 'created', 'last_updated', "port_template_groups",
         ]
         validators = []
 
@@ -440,6 +441,7 @@ class InterfaceSerializer(TaggitSerializer, ConnectedEndpointSerializer):
     # TODO: Remove in v2.7 (backward-compatibility for form_factor)
     form_factor = ChoiceField(choices=IFACE_TYPE_CHOICES, required=False)
     lag = NestedInterfaceSerializer(required=False, allow_null=True)
+    port_template = NestedPortTemplateSerializer(required=False, allow_null=True)
     mode = ChoiceField(choices=IFACE_MODE_CHOICES, required=False, allow_null=True)
     untagged_vlan = NestedVLANSerializer(required=False, allow_null=True)
     tagged_vlans = SerializedPKRelatedField(
@@ -456,8 +458,28 @@ class InterfaceSerializer(TaggitSerializer, ConnectedEndpointSerializer):
         fields = [
             'id', 'device', 'name', 'type', 'form_factor', 'enabled', 'lag', 'mtu', 'mac_address', 'mgmt_only',
             'description', 'connected_endpoint_type', 'connected_endpoint', 'connection_status', 'cable', 'mode',
-            'untagged_vlan', 'tagged_vlans', 'tags', 'count_ipaddresses',
+            'untagged_vlan', 'tagged_vlans', 'tags', 'count_ipaddresses', 'port_template'
         ]
+    def create(self, data):
+        vlan = data.get("tagged_vlans")
+        if vlan is not None:
+            del data["tagged_vlans"]
+        instance = Interface.objects.create(**data)
+        self.assignVLAN(vlan, instance)
+        return instance
+
+    def update(self, instance, data):
+        vlan = data.get("tagged_vlans")
+        if vlan is not None:
+            vlan = data.get("tagged_vlans")
+            self.assignVLAN(vlan, instance)
+        if data.get("port_template") is not None or data.get(
+                "tagged_vlans") is not None:
+            if vlan is not None:
+                del data["tagged_vlans"]
+            self.assignVLAN(vlan, instance)
+        instance.save()
+        return instance
 
     # TODO: This validation should be handled by Interface.clean()
     def validate(self, data):
@@ -478,6 +500,23 @@ class InterfaceSerializer(TaggitSerializer, ConnectedEndpointSerializer):
                 })
 
         return super().validate(data)
+
+    def assignVLAN(self, vlans, instance):
+        if instance.port_template is not None:
+            instance.mode = instance.port_template.mode
+            if instance.port_template.untagged_vlan is not None:
+                instance.untagged_vlan = instance.port_template.untagged_vlan
+            vlans_tagged = VLAN.objects.filter(
+                id__in=[
+                    tagged_vlans.id for tagged_vlans in instance.port_template.tagged_vlans.all()])
+            for v in vlans_tagged:
+                instance.tagged_vlans.add(v)
+        elif vlans is not None:
+            vlans_tagged = VLAN.objects.filter(
+                id__in=[vlan.id for vlan in vlans])
+            for v in vlans_tagged:
+                instance.tagged_vlans.add(v)
+        return instance
 
 
 class RearPortSerializer(ValidatedModelSerializer):

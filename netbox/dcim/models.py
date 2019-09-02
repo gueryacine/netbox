@@ -24,7 +24,8 @@ from .constants import *
 from .exceptions import LoopDetected
 from .fields import ASNField, MACAddressField
 from .managers import InterfaceManager
-
+from django.db.models.signals import pre_save, post_save
+from django.dispatch import receiver
 
 class ComponentTemplateModel(models.Model):
 
@@ -1527,6 +1528,12 @@ class Device(ChangeLoggedModel, ConfigContextModel, CustomFieldModel):
     images = GenericRelation(
         to='extras.ImageAttachment'
     )
+    port_template_groups = models.ManyToManyField(
+        to='ipam.PortTemplateGroup',
+        related_name='device_port_template_group',
+        blank=True,
+        verbose_name='group PortTemplates',
+    )
 
     objects = NaturalOrderingManager()
     tags = TaggableManager(through=TaggedItem)
@@ -2175,6 +2182,18 @@ class Interface(CableTermination, ComponentModel):
         verbose_name='OOB Management',
         help_text='This interface is used only for out-of-band management'
     )
+    description = models.CharField(
+        max_length=100,
+        blank=True
+    )
+    port_template = models.ForeignKey(
+        to='ipam.PortTemplate',
+        on_delete=models.SET_NULL,
+        related_name='PortTemplate',
+        null=True,
+        blank=True,
+        verbose_name='Porttemplates',
+    )
     mode = models.PositiveSmallIntegerField(
         choices=IFACE_MODE_CHOICES,
         blank=True,
@@ -2199,8 +2218,8 @@ class Interface(CableTermination, ComponentModel):
     tags = TaggableManager(through=TaggedItem)
 
     csv_headers = [
-        'device', 'virtual_machine', 'name', 'lag', 'type', 'enabled', 'mac_address', 'mtu', 'mgmt_only',
-        'description', 'mode',
+        'device', 'virtual_machine', 'name', 'lag', 'form_factor', 'enabled', 'mac_address', 'mtu', 'mgmt_only',
+        'description', 'mode', 'port_template'
     ]
 
     class Meta:
@@ -2279,6 +2298,17 @@ class Interface(CableTermination, ComponentModel):
                 'untagged_vlan': "The untagged VLAN ({}) must belong to the same site as the interface's parent "
                                  "device/VM, or it must be global".format(self.untagged_vlan)
             })
+
+
+        if self.port_template != None:
+            if ((self.port_template.types != 1 and self.is_ethernet) or 
+                (self.port_template.types != 3 and self.is_lag) or 
+                (self.port_template.types != 2 and self.is_virtual)):
+                raise ValidationError({
+                    'port_template': 'The type of the port template ({}) must be same as the Form Factor selected'.format(
+                        self.port_template
+                    )
+                })
 
     def save(self, *args, **kwargs):
 
@@ -2371,12 +2401,25 @@ class Interface(CableTermination, ComponentModel):
         return self.type in WIRELESS_IFACE_TYPES
 
     @property
+    def is_ethernet(self):
+        return self.form_factor in ETHERNET_IFACE_TYPES
+
+    @property
     def is_lag(self):
         return self.type == IFACE_TYPE_LAG
 
     @property
     def count_ipaddresses(self):
         return self.ip_addresses.count()
+
+@receiver(pre_save, sender=Interface)
+def signal_port_are_clear(sender, instance, update_fields=None, **kwargs):
+    if instance.pk is not None:
+        old_instance = Interface.objects.get(id=instance.id)
+        if old_instance.port_template is not None and instance.port_template is None:
+            instance.mode = None
+            instance.untagged_vlan = None
+            instance.tagged_vlans.all().delete()
 
 
 #

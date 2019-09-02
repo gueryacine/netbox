@@ -1,0 +1,14 @@
+<div class="pull-right">
+    {% if perms.ipam.add_port_template %}
+        <a href="{% url 'ipam:port_template_add' %}?group={{ port_template_group.pk }}{% if port_template_group.site != None %}&site={{ port_template_group.site.pk }}{% endif %}" class="btn btn-success">
+            <i class="fa fa-plus" aria-hidden="true"></i> Add a Port-template
+        </a>
+    {% endif %}
+    {% if perms.ipam.change_port_template_group %}
+               <a href="{% url 'ipam:port_template_group_edit' pk=port_template_group.pk %}" class="btn btn-warning">
+                       <span class="fa fa-pencil" aria-hidden="true"></span>
+                       Edit this Port-templates Group
+               </a>
+    {% endif %}
+</div>
+<h1>{{ port_template_group }}</h1>

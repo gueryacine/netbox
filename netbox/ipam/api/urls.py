@@ -37,6 +37,10 @@ router.register(r'ip-addresses', views.IPAddressViewSet)
 router.register(r'vlan-groups', views.VLANGroupViewSet)
 router.register(r'vlans', views.VLANViewSet)
 
+# PortTemplatess
+router.register(r"port-template-groups", views.PortTemplatesGroupViewSet)
+router.register(r"port-template", views.PortTemplatesViewSet)
+
 # Services
 router.register(r'services', views.ServiceViewSet)
 

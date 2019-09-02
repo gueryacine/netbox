@@ -283,6 +283,26 @@
                             <a href="{% url 'ipam:vlangroup_list' %}">VLAN Groups</a>
                         </li>
                         <li class="divider"></li>
+                        <li class="dropdown-header">Port-templates</li>
+                        <li>
+                            {% if perms.ipam.add_port %}
+                                <div class="buttons pull-right">
+                                    <a href="{% url 'ipam:port_template_add' %}" class="btn btn-xs btn-success" title="Add"><i class="fa fa-plus"></i></a>
+                                    <a href="{% url 'ipam:port_template_import' %}" class="btn btn-xs btn-info" title="Import"><i class="fa fa-download"></i></a>
+                                </div>
+                            {% endif %}
+                            <a href="{% url 'ipam:port_template_list' %}">Port-templates</a>
+                        </li>
+                        <li>
+                            {% if perms.ipam.add_port_template_group %}
+                                <div class="buttons pull-right">
+                                    <a href="{% url 'ipam:port_template_group_add' %}" class="btn btn-xs btn-success" title="Add"><i class="fa fa-plus"></i></a>
+                                    <a href="{% url 'ipam:port_template_group_import' %}" class="btn btn-xs btn-info" title="Import"><i class="fa fa-download"></i></a>
+                                </div>
+                            {% endif %}
+                            <a href="{% url 'ipam:port_template_group_list' %}">Port-templates Groups</a>
+                        </li>
+                        <li class="divider"></li>
                         <li class="dropdown-header">Services</li>
                         <li{% if not perms.ipam.view_service %} class="disabled"{% endif %}>
                             <a href="{% url 'ipam:service_list' %}">Services</a>

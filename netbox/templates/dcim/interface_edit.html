@@ -13,30 +13,37 @@
             {% render_field form.mtu %}
             {% render_field form.mgmt_only %}
             {% render_field form.description %}
+            {% render_field form.port_template %}
             {% render_field form.mode %}
-        </div>
-    </div>
-    <div class="panel panel-default">
-        <div class="panel-heading"><strong>Tags</strong></div>
-        <div class="panel-body">
             {% render_field form.tags %}
         </div>
     </div>
-    <div class="panel panel-default" id="vlans_panel">
-        <div class="panel-heading"><strong>802.1Q VLANs</strong></div>
-        {% if obj.mode %}
+    {% if obj.port_template %}
+        <div class="panel panel-default" id="vlans_panel">
+            <div class="panel-heading"><strong>802.1Q VLANs</strong></div>
+            {% include 'ipam/inc/port_template_vlans_table_on_interface.html' %}
+            <div class="panel-footer text-right">
+                <a href="{% url 'ipam:port_template_edit' pk=obj.port_template.pk %}?return_url={% url 'dcim:interface_bulk_edit' pk=obj.pk %}" class="btn btn-primary btn-xs">
+                    <i class="glyphicon glyphicon-plus"></i> Update Port Template
+                </a>
+            </div>
+        </div>
+    {% elif obj.mode %}
+        <div class="panel panel-default" id="vlans_panel">
+            <div class="panel-heading"><strong>802.1Q VLANs</strong></div>
             {% include 'dcim/inc/interface_vlans_table.html' %}
             <div class="panel-footer text-right">
                 <a href="{% url 'dcim:interface_assign_vlans' pk=obj.pk %}?return_url={% url 'dcim:interface_edit' pk=obj.pk %}" class="btn btn-primary btn-xs{% if form.instance.mode == 100 and form.instance.untagged_vlan %} disabled{% endif %}">
                     <i class="glyphicon glyphicon-plus"></i> Add VLANs
                 </a>
             </div>
+        </div>
         {% else %}
-            <div class="panel-body text-center text-muted">
-                <p>802.1Q mode not set</p>
-            </div>
-        {% endif %}
-    </div>
+        <div class="panel-body text-center text-muted">
+            <p>802.1Q mode not set</p>
+        </div>
+
+    {% endif %}
 {% endblock %}
 
 {% block buttons %}
@@ -51,8 +58,20 @@
 {% endblock %}
 
 {% block javascript %}
+
     <script type="text/javascript">
         $(document).ready(function() {
+            $('#id_port_template').on('change', function() {
+
+                if(this.value === ''){
+                    $('#id_mode').prop( "disabled", false );
+                }
+                else
+                {
+                    $('#id_mode').prop( "disabled", true );
+                }
+            });
+
             $('#clear_untagged_vlan').click(function () {
                 $('input[name="untagged_vlan"]').prop("checked", false);
                 return false;
@@ -61,6 +80,12 @@
                 $('input[name="tagged_vlans"]').prop("checked", false);
                 return false;
             });
+
+            if($('#id_port_template').val() !== '')
+            {
+                    $('#id_mode').prop( "disabled", true );
+            }
         });
     </script>
+
 {% endblock %}

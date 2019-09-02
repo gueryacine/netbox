@@ -2,7 +2,7 @@ from django.urls import path
 
 from extras.views import ObjectChangeLogView
 from . import views
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 app_name = 'ipam'
 urlpatterns = [
@@ -92,6 +92,29 @@ urlpatterns = [
     path(r'vlans/<int:pk>/delete/', views.VLANDeleteView.as_view(), name='vlan_delete'),
     path(r'vlans/<int:pk>/changelog/', ObjectChangeLogView.as_view(), name='vlan_changelog', kwargs={'model': VLAN}),
 
+
+    # PortTemplateGroup
+    url(r"^port-template-groups/$", views.PortTemplatesGroupListView.as_view(), name="port_template_group_list"),
+    url(r"^port-template-groups/add/$", views.PortTemplatesGroupCreateView.as_view(), name="port_template_group_add"),
+    url(r"^port-template-groups/import/$", views.PortTemplatesGroupBulkImportView.as_view(), name="port_template_group_import"),
+    url(r"^port-template-groups/delete/$", views.PortTemplatesGroupBulkDeleteView.as_view(), name="port_template_group_bulk_delete"),
+    url(r"^port-template-groups/(?P<pk>\d+)/edit/$", views.PortTemplatesGroupEditView.as_view(), name="port_template_group_edit"),
+    url(r"^port-template-groups/(?P<pk>\d+)/port-templates/$", views.PortTemplatesGroupPortTemplatessView.as_view(), name="port_template_group_ports"),
+    url(r"^port-template-groups/(?P<pk>\d+)/changelog/$", ObjectChangeLogView.as_view(), name="port_template_group_changelog", kwargs={"model": PortTemplateGroup}),
+    
+    # PortTemplate
+    url(r"^port-templates/$", views.PortTemplatesListView.as_view(), name="port_template_list"),
+    url(r"^port-templates/add/$", views.PortTemplatesCreateView.as_view(), name="port_template_add"),
+    url(r"^port-templates/import/$", views.PortTemplatesBulkImportView.as_view(), name="port_template_import"),
+    url(r"^port-templates/edit/$", views.PortTemplatesBulkEditView.as_view(), name="port_template_bulk_edit"),
+    url(r"^port-templates/delete/$", views.PortTemplatesBulkDeleteView.as_view(), name="port_template_bulk_delete"),
+    url(r"^port-templates/(?P<pk>\d+)/$", views.PortTemplatesView.as_view(), name="port_template"),
+    url(r"^port-templates/(?P<pk>\d+)/members/$", views.PortTemplatesMembersView.as_view(), name="port_template_members"),
+    url(r"^port-templates/(?P<pk>\d+)/edit/$", views.PortTemplatesEditView.as_view(), name="port_template_edit"),
+    url(r"^port-templates/(?P<pk>\d+)/delete/$", views.PortTemplatesDeleteView.as_view(), name="port_template_delete"),
+    url(r"^port-templates/(?P<pk>\d+)/changelog/$", ObjectChangeLogView.as_view(), name="port_template_changelog", kwargs={"model": PortTemplate}),
+    url(r"^port-templates/(?P<pk>\d+)/assign-vlans/$", views.PortTemplatesAssignVLANsView.as_view(), name="port_template_assign_vlans"),
+    
     # Services
     path(r'services/', views.ServiceListView.as_view(), name='service_list'),
     path(r'services/edit/', views.ServiceBulkEditView.as_view(), name='service_bulk_edit'),

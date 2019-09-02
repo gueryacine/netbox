@@ -1,0 +1,39 @@
+<table class="table panel-body">
+        <tr>
+            <th>VID</th>
+            <th>Name</th>
+            <th>Untagged</th>
+            <th>Tagged</th>
+        </tr>
+        {% with tagged_vlans=interface.port_template.tagged_vlans.all %}
+            {% if interface.port_template.untagged_vlan and interface.port_template.untagged_vlan not in tagged_vlans %}
+                <tr>
+                    <td>
+                        <a href="{{ interface.port_template.untagged_vlan.get_absolute_url }}">{{ interface.port_template.untagged_vlan.vid }}</a>
+                    </td>
+                    <td>{{ interface.port_template.untagged_vlan.name }}</td>
+                    <td>
+                        <input type="radio" name="untagged_vlan" value="{{ interface.port_template.untagged_vlan.pk }}" checked="checked" disabled/>
+                    </td>
+                    <td>
+                        <input type="checkbox" name="tagged_vlans" value="{{ interface.port_template.untagged_vlan.pk }}" disabled/>
+                    </td>
+                </tr>
+            {% endif %}
+            {% for vlan in tagged_vlans %}
+                <tr>
+                    <td>
+                        <a href="{{ vlan.get_absolute_url }}">{{ vlan.vid }}</a>
+                    </td>
+                    <td>{{ vlan.name }}</td>
+                    <td>
+                        <input type="radio" name="untagged_vlan" value="{{ vlan.pk }}"{% if vlan == interface.port_template.untagged_vlan %} checked="checked"{% endif %}  disabled/>
+                    </td>
+                    <td>
+                        <input type="checkbox" name="tagged_vlans" value="{{ vlan.pk }}" checked="checked" disabled/>
+                    </td>
+                </tr>
+            {% endfor %}
+        {% endwith %}
+    </table>
+    

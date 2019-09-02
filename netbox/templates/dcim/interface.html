@@ -95,6 +95,10 @@
                     <td>{{ interface.mac_address|placeholder }}</span></td>
                 </tr>
                 <tr>
+                    <td>Port-template</td>
+                    <td>{{ interface.port_template.name }}</td>
+                </tr>
+                <tr>
                     <td>802.1Q Mode</td>
                     <td>{{ interface.get_mode_display }}</td>
                 </tr>
@@ -246,9 +250,25 @@
         {% include 'panel_table.html' with table=ipaddress_table heading="IP Addresses" %}
     </div>
 </div>
+{% if interface.port_template %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="panel panel-default" id="vlans_panel">
+                <div class="panel-heading"><strong>VLANs</strong></div>
+                    {% include 'ipam/inc/port_template_vlans_on_interface.html' %}
+                <div class="panel-footer text-right">
+                    <a href="{% url 'ipam:port_template_assign_vlans' pk=interface.port_template.pk %}?return_url={% url 'dcim:interface' pk=interface.pk %}" class="btn btn-primary btn-xs{% if form.instance.port_template.mode == 100 and form.instance.port_template.untagged_vlan %} disabled{% endif %}">
+                        <i class="glyphicon glyphicon-plus"></i> Update VLANs
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
 <div class="row">
     <div class="col-md-12">
         {% include 'panel_table.html' with table=vlan_table heading="VLANs" %}
     </div>
 </div>
+{% endif %}
 {% endblock %}
