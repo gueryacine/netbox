@@ -386,6 +386,32 @@
             </div>
             <div class="panel panel-default">
                 <div class="panel-heading">
+                    <strong>Port-templates Groups</strong>
+                </div>
+                {% if port_template_groups %}
+                    <table class="table table-hover panel-body">
+                        <tr>
+                            <th>Name</th>
+                            <th>Site</th>
+                            <th>Slug</th>
+                        </tr>
+                        {% for port_template_group in port_template_groups %}
+                            {% include 'ipam/inc/port_template_group_device_table.html' %}
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <div class="panel-body text-muted">
+                        None
+                    </div>
+                {% endif %}
+                    <div class="panel-footer text-right">
+                        <a href="{% url 'dcim:device_port_template_group_assign' pk=device.pk %}" class="btn btn-xs btn-primary">
+                            <span class="glyphicon glyphicon-plus" aria-hidden="true"></span> Assign PortTemplate Group
+                        </a>
+                    </div>
+            </div>
+            <div class="panel panel-default">
+                <div class="panel-heading">
                     <strong>Images</strong>
                 </div>
                 {% include 'inc/image_attachments.html' with images=device.images.all %}

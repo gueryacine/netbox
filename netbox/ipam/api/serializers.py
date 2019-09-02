@@ -9,7 +9,7 @@ from dcim.api.nested_serializers import NestedDeviceSerializer, NestedSiteSerial
 from dcim.models import Interface
 from extras.api.customfields import CustomFieldModelSerializer
 from ipam.constants import *
-from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 from tenancy.api.nested_serializers import NestedTenantSerializer
 from utilities.api import (
     ChoiceField, SerializedPKRelatedField, ValidatedModelSerializer, WritableNestedSerializer,
@@ -122,6 +122,92 @@ class VLANSerializer(TaggitSerializer, CustomFieldModelSerializer):
 
         return data
 
+
+#
+# PortTemplates
+#
+
+class PortTemplatesGroupSerializer(ValidatedModelSerializer):
+    site = NestedSiteSerializer(required=False, allow_null=True)
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = ['id', 'name', 'slug', 'site']
+        validators = []
+
+    def validate(self, data):
+
+        # Validate uniqueness of name and slug if a site has been assigned.
+        if data.get('site', None):
+            for field in ['name', 'slug']:
+                validator = UniqueTogetherValidator(
+                    queryset=PortTemplateGroup.objects.all(), fields=(
+                        'site', field))
+                validator.set_context(self)
+                validator(data)
+
+        # Enforce model validation
+        super().validate(data)
+
+        return data
+
+
+class PortTemplatesSerializer(TaggitSerializer, CustomFieldModelSerializer):
+    site = NestedSiteSerializer(required=False, allow_null=True)
+    group = NestedPortTemplateGroupSerializer(required=False, allow_null=True)
+    tenant = NestedTenantSerializer(required=False, allow_null=True)
+    status = ChoiceField(choices=PORT_STATUS_CHOICES, required=False)
+    types = ChoiceField(choices=PORT_TYPES_CHOICES, required=False)
+    role = NestedRoleSerializer(required=False, allow_null=True)
+    mode = ChoiceField(
+        choices=IFACE_MODE_CHOICES,
+        required=False,
+        allow_null=True)
+    untagged_vlan = NestedVLANSerializer(required=False, allow_null=True)
+    tagged_vlans = NestedVLANSerializer(
+        required=False,
+        many=True,
+    )
+    tags = TagListSerializerField(required=False)
+
+    class Meta:
+        model = PortTemplate
+        fields = [
+            'id',
+            'site',
+            'group',
+            'name',
+            'tenant',
+            'status',
+            'types',
+            'role',
+            'description',
+            'tags',
+            'display_name',
+            'mode',
+            'untagged_vlan',
+            'tagged_vlans',
+            'custom_fields',
+            'created',
+            'last_updated',
+        ]
+        validators = []
+
+    def validate(self, data):
+
+        # Validate uniqueness of vid and name if a group has been assigned.
+        if data.get('group', None):
+            for field in ['name']:
+                validator = UniqueTogetherValidator(
+                    queryset=PortTemplate.objects.all(), fields=(
+                        'group', field))
+                validator.set_context(self)
+                validator(data)
+
+        # Enforce model validation
+        super().validate(data)
+
+        return data
 
 #
 # Prefixes

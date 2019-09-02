@@ -11,7 +11,7 @@ from taggit.forms import TagField
 from timezone_field import TimeZoneFormField
 
 from extras.forms import AddRemoveTagsForm, CustomFieldForm, CustomFieldBulkEditForm, CustomFieldFilterForm
-from ipam.models import IPAddress, VLAN, VLANGroup
+from ipam.models import IPAddress, VLAN, VLANGroup, PortTemplate, PortTemplateGroup
 from tenancy.forms import TenancyForm
 from tenancy.models import Tenant
 from utilities.forms import (
@@ -1994,16 +1994,17 @@ class InterfaceForm(BootstrapMixin, forms.ModelForm):
         model = Interface
         fields = [
             'device', 'name', 'form_factor', 'enabled', 'lag', 'mac_address', 'mtu', 'mgmt_only', 'description',
-            'mode', 'untagged_vlan', 'tagged_vlans', 'tags',
+            'mode', 'untagged_vlan', 'tagged_vlans', 'tags','port_template',
         ]
         widgets = {
             'device': forms.HiddenInput(),
             'form_factor': StaticSelect2(),
             'lag': StaticSelect2(),
+            'port_template': StaticSelect2(),
             'mode': StaticSelect2(),
         }
         labels = {
-            'mode': '802.1Q Mode',
+            'mode': '802.1Q Mode', 'port_template': 'PortTemplate'
         }
         help_texts = {
             'mode': INTERFACE_MODE_HELP_TEXT,
@@ -2018,11 +2019,17 @@ class InterfaceForm(BootstrapMixin, forms.ModelForm):
             self.fields['lag'].queryset = Interface.objects.filter(
                 device__in=[device, device.get_vc_master()], form_factor=IFACE_FF_LAG
             )
+            self.fields['port_template'].queryset = PortTemplate.objects.filter(
+                group__in=[
+                    port_template_group for port_template_group in device.port_template_groups.all()])
         else:
             device = self.instance.device
             self.fields['lag'].queryset = Interface.objects.filter(
                 device__in=[self.instance.device, self.instance.device.get_vc_master()], form_factor=IFACE_FF_LAG
             )
+            self.fields['port_template'].queryset = PortTemplate.objects.filter(
+                group__in=[
+                    port_template_group for port_template_group in device.port_template_groups.all()])
 
     def clean(self):
 
@@ -2040,6 +2047,24 @@ class InterfaceForm(BootstrapMixin, forms.ModelForm):
         # Remove all tagged VLAN assignments from "tagged all" interfaces
         elif self.cleaned_data['mode'] == IFACE_MODE_TAGGED_ALL:
             self.cleaned_data['tagged_vlans'] = []
+
+
+    def save(self, *args, **kwargs):
+        self.instance.save()
+        if self.instance.port_template is not None:
+            self.instance.mode = self.instance.port_template.mode
+            if self.instance.port_template.untagged_vlan is not None:
+                self.instance.untagged_vlan = self.instance.port_template.untagged_vlan
+
+            vlans_tagged = VLAN.objects.filter(
+                id__in=[
+                    untagged_vlan.id for untagged_vlan in self.instance.port_template.tagged_vlans.all()])
+
+            for vlan in vlans_tagged:
+                self.instance.tagged_vlans.add(vlan)
+            return super().save(commit=False, *args, **kwargs)
+        else:
+            return super().save(*args, **kwargs)
 
 
 class InterfaceAssignVLANsForm(BootstrapMixin, forms.ModelForm):
@@ -2165,6 +2190,12 @@ class InterfaceCreateForm(ComponentForm, forms.Form):
         max_length=100,
         required=False
     )
+    port_template = forms.ModelChoiceField(
+        queryset=PortTemplate.objects.all(),
+        required=False,
+        label='Port-template',
+        widget=StaticSelect2(),
+    )
     mode = forms.ChoiceField(
         choices=add_blank_choice(IFACE_MODE_CHOICES),
         required=False,
@@ -2187,8 +2218,14 @@ class InterfaceCreateForm(ComponentForm, forms.Form):
             self.fields['lag'].queryset = Interface.objects.filter(
                 device__in=[self.parent, self.parent.get_vc_master()], form_factor=IFACE_FF_LAG
             )
+            self.fields['port_template'].queryset = PortTemplate.objects.filter(
+                group__in=[
+                    port_template_group for port_template_group in self.parent.port_template_groups.all()]
+            )
         else:
             self.fields['lag'].queryset = Interface.objects.none()
+            self.fields['port_template'].queryset = Interface.objects.none()
+
 
 
 class InterfaceBulkEditForm(BootstrapMixin, AddRemoveTagsForm, BulkEditForm):
@@ -3107,3 +3144,49 @@ class VirtualChassisFilterForm(BootstrapMixin, CustomFieldFilterForm):
         to_field_name='slug',
         null_label='-- None --',
     )
+
+class DeviceAssignPortTemplatesGroupsForm(forms.Form, CustomFieldForm):
+    port_template_groups = forms.MultipleChoiceField(
+        required=False,
+        choices=[],
+        label='PortTemplates Group',
+        widget=forms.SelectMultiple(
+            attrs={'style': 'width:100%', 'size': '10'}
+        ),
+    )
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = ['port_template_groups']
+
+    def __init__(self, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        self.initial['port_template_groups'] = [
+            v.pk for v in self.instance.port_template_groups.all()]
+
+        # Compile VLAN choices
+        port_template_groups_choices = []
+
+        global_port_template_groups = PortTemplateGroup.objects.filter(
+            site=None)
+        port_template_groups_choices.append(
+            ('Global',
+             [
+                 (port_template_groups.pk,
+                  port_template_groups) for port_template_groups in global_port_template_groups],
+             ))
+
+        site = getattr(self.instance, 'site', None)
+        if site is not None:
+            # Add non-grouped site VLANs
+            site_port_template_groups = PortTemplateGroup.objects.filter(
+                site=site)
+            port_template_groups_choices.append(
+                (site.name,
+                 [
+                     (port_template_groups.pk,
+                      port_template_groups) for port_template_groups in site_port_template_groups],
+                 ))
+        self.fields['port_template_groups'].choices = port_template_groups_choices

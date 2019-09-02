@@ -14,9 +14,9 @@ from utilities.forms import (
 )
 from virtualization.models import VirtualMachine
 from .constants import (
-    IP_PROTOCOL_CHOICES, IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES,
+    IP_PROTOCOL_CHOICES, IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES, PORT_STATUS_CHOICES, PORT_TYPES_CHOICES, IFACE_MODE_ACCESS, IFACE_MODE_TAGGED_ALL
 )
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 IP_FAMILY_CHOICES = [
     ('', 'All'),
@@ -27,6 +27,11 @@ IP_FAMILY_CHOICES = [
 PREFIX_MASK_LENGTH_CHOICES = add_blank_choice([(i, i) for i in range(1, 128)])
 IPADDRESS_MASK_LENGTH_CHOICES = add_blank_choice([(i, i) for i in range(1, 129)])
 
+INTERFACE_MODE_HELP_TEXT = """
+Access: One untagged VLAN<br />
+Tagged: One untagged VLAN and/or one or more tagged VLANs<br />
+Tagged All: Implies all VLANs are available (w/optional untagged VLAN)
+"""
 
 #
 # VRFs
@@ -383,6 +388,12 @@ class PrefixCSVForm(forms.ModelForm):
     vlan_vid = forms.IntegerField(
         help_text='Numeric ID of assigned VLAN',
         required=False
+    )
+    port_template_group = forms.CharField(
+        help_text='Group name of assigned Port-templates', required=False
+    )
+    port_template_name = forms.CharField(
+        help_text='Name of assigned Port-templates', required=False
     )
     status = CSVChoiceField(
         choices=PREFIX_STATUS_CHOICES,
@@ -1270,6 +1281,371 @@ class VLANFilterForm(BootstrapMixin, CustomFieldFilterForm):
             value_field="slug",
             null_option=True,
         )
+    )
+
+#
+# Port Templates groups
+#
+
+class PortTemplatesGroupForm(BootstrapMixin, forms.ModelForm):
+    slug = SlugField()
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = ["site", "name", "slug"]
+        widgets = {"site": APISelect(api_url="/api/dcim/sites/")}
+
+
+class PortTemplatesGroupCSVForm(forms.ModelForm):
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        required=False,
+        to_field_name="name",
+        help_text="Name of parent site",
+        error_messages={"invalid_choice": "Site not found."},
+    )
+    slug = SlugField()
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = PortTemplateGroup.csv_headers
+        help_texts = {"name": "Name of Port-templates group"}
+
+
+class PortTemplatesGroupFilterForm(BootstrapMixin, forms.Form):
+    site = FilterChoiceField(
+        queryset=Site.objects.all(),
+        to_field_name="slug",
+        null_label="-- Global --",
+        widget=APISelectMultiple(
+            api_url="/api/dcim/sites/", value_field="slug", null_option=True
+        ),
+    )
+
+
+#
+# Port Template
+#
+
+
+class PortTemplatesForm(BootstrapMixin, TenancyForm, CustomFieldForm):
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        required=False,
+        widget=APISelect(
+            api_url="/api/dcim/sites/",
+            filter_for={"group": "site_id"},
+            attrs={"nullable": "true"},
+        ),
+    )
+    group = forms.ModelChoiceField(
+        queryset=PortTemplateGroup.objects.all(),
+        # chains=(("site", "site"),),
+        required=False,
+        label="Group",
+        widget=APISelect(api_url="/api/ipam/port-template-groups/"),
+    )
+    tags = TagField(required=False)
+
+    class Meta:
+        model = PortTemplate
+        fields = [
+            "site",
+            "group",
+            "name",
+            "status",
+            "types",
+            "role",
+            "description",
+            "tenant_group",
+            "tenant",
+            "tags",
+            "mode",
+            "untagged_vlan",
+            "tagged_vlans",
+            "tags",
+        ]
+        help_texts = {
+            "site": "Leave blank if this Port-templates spans multiple sites",
+            "group": "Port-templates group (optional)",
+            "name": "Configured Port-templates name",
+            "status": "Operational status of this Port-templates",
+            "types": "Operational types of this Port-templates",
+            "role": "The primary function of this Port-templates",
+            "mode": INTERFACE_MODE_HELP_TEXT,
+        }
+        labels = {"mode": "802.1Q Mode"}
+        widgets = {
+            "types": StaticSelect2(),
+            "status": StaticSelect2(),
+            "mode": StaticSelect2(),
+            "role": APISelect(api_url="/api/ipam/roles/"),
+        }
+
+    def clean(self):
+
+        super().clean()
+
+        # Validate VLAN assignments
+        tagged_vlans = self.cleaned_data["tagged_vlans"]
+
+        # Untagged port cannot be assigned tagged VLANs
+        if self.cleaned_data["mode"] == IFACE_MODE_ACCESS and tagged_vlans:
+            raise forms.ValidationError(
+                {"mode": "An access Port-templates cannot have tagged VLANs assigned."}
+            )
+
+        # Remove all tagged VLAN assignments from "tagged all" port
+        elif self.cleaned_data["mode"] == IFACE_MODE_TAGGED_ALL:
+            self.cleaned_data["tagged_vlans"] = []
+
+
+class PortTemplatesAssignVLANsForm(BootstrapMixin, forms.ModelForm):
+    vlans = forms.MultipleChoiceField(
+        choices=[],
+        label="VLANs",
+        widget=StaticSelect2Multiple(
+            attrs={
+                "size": 20}))
+    tagged = forms.BooleanField(required=False, initial=True)
+
+    class Meta:
+        model = PortTemplate
+        fields = []
+
+    def __init__(self, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        if self.instance.mode == IFACE_MODE_ACCESS:
+            self.initial["tagged"] = False
+
+        # Find all VLANs already assigned to the port for exclusion from the
+        # list
+        assigned_vlans = [v.pk for v in self.instance.tagged_vlans.all()]
+        if self.instance.untagged_vlan is not None:
+            assigned_vlans.append(self.instance.untagged_vlan.pk)
+
+        # Compile VLAN choices
+        vlan_choices = []
+
+        # Add non-grouped global VLANs
+        global_vlans = VLAN.objects.filter(site=None, group=None).exclude(
+            pk__in=assigned_vlans
+        )
+        vlan_choices.append(
+            ("Global", [(vlan.pk, vlan) for vlan in global_vlans]))
+
+        # Add grouped global VLANs
+        for group in VLANGroup.objects.filter(site=None):
+            global_group_vlans = VLAN.objects.filter(group=group).exclude(
+                pk__in=assigned_vlans
+            )
+            vlan_choices.append(
+                (group.name, [(vlan.pk, vlan) for vlan in global_group_vlans])
+            )
+
+        site = getattr(self.instance, "site", None)
+        if site is not None:
+
+            # Add non-grouped site VLANs
+            site_vlans = VLAN.objects.filter(site=site, group=None).exclude(
+                pk__in=assigned_vlans
+            )
+            vlan_choices.append(
+                (site.name, [(vlan.pk, vlan) for vlan in site_vlans]))
+
+            # Add grouped site VLANs
+            for group in VLANGroup.objects.filter(site=site):
+                site_group_vlans = VLAN.objects.filter(group=group).exclude(
+                    pk__in=assigned_vlans
+                )
+                vlan_choices.append(
+                    (
+                        "{} / {}".format(group.site.name, group.name),
+                        [(vlan.pk, vlan) for vlan in site_group_vlans],
+                    )
+                )
+
+        self.fields["vlans"].choices = vlan_choices
+
+    def clean(self):
+
+        super().clean()
+
+        # Only untagged VLANs permitted on an access port
+        if (
+            self.instance.mode == IFACE_MODE_ACCESS
+            and len(self.cleaned_data["vlans"]) > 1
+        ):
+            raise forms.ValidationError(
+                "Only one VLAN may be assigned to an access port."
+            )
+
+        # 'tagged' is required if more than one VLAN is selected
+        if not self.cleaned_data["tagged"] and len(
+                self.cleaned_data["vlans"]) > 1:
+            raise forms.ValidationError(
+                "Only one untagged VLAN may be selected.")
+
+    def save(self, *args, **kwargs):
+
+        if self.cleaned_data["tagged"]:
+            for vlan in self.cleaned_data["vlans"]:
+                self.instance.tagged_vlans.add(vlan)
+        else:
+            self.instance.untagged_vlan_id = self.cleaned_data["vlans"][0]
+
+        return super().save(*args, **kwargs)
+
+
+class PortTemplatesCSVForm(forms.ModelForm):
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        required=False,
+        to_field_name="name",
+        help_text="Name of parent site",
+        error_messages={"invalid_choice": "Site not found."},
+    )
+    group_name = forms.CharField(
+        help_text="Name of Port-templates group", required=False
+    )
+    tenant = forms.ModelChoiceField(
+        queryset=Tenant.objects.all(),
+        to_field_name="name",
+        required=False,
+        help_text="Name of assigned tenant",
+        error_messages={"invalid_choice": "Tenant not found."},
+    )
+    status = CSVChoiceField(
+        choices=PORT_STATUS_CHOICES,
+        help_text="Operational status")
+    types = CSVChoiceField(
+        choices=PORT_TYPES_CHOICES,
+        help_text="Operational status")
+    role = forms.ModelChoiceField(
+        queryset=Role.objects.all(),
+        required=False,
+        to_field_name="name",
+        help_text="Functional role",
+        error_messages={"invalid_choice": "Invalid role."},
+    )
+
+    class Meta:
+        model = PortTemplate
+        fields = PortTemplate.csv_headers
+        help_texts = {
+            "name": "Port-templates name",
+        }
+
+    def clean(self):
+        super().clean()
+
+        site = self.cleaned_data.get("site")
+        group_name = self.cleaned_data.get("group_name")
+
+        # Validate PORT group
+        if group_name:
+            try:
+                self.instance.group = PortTemplateGroup.objects.get(
+                    site=site, name=group_name)
+            except PortTemplateGroup.DoesNotExist:
+                if site:
+                    raise forms.ValidationError(
+                        "Port-templates group {} not found for site {}".format(
+                            group_name, site
+                        )
+                    )
+                else:
+                    raise forms.ValidationError(
+                        "Global Port-templates group {} not found".format(group_name))
+
+
+class PortTemplatesBulkEditForm(BootstrapMixin,AddRemoveTagsForm,CustomFieldBulkEditForm):
+    pk = forms.ModelMultipleChoiceField(
+        queryset=PortTemplate.objects.all(), widget=forms.MultipleHiddenInput()
+    )
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        required=False,
+        widget=APISelect(api_url="/api/dcim/sites/"),
+    )
+    group = forms.ModelChoiceField(
+        queryset=PortTemplateGroup.objects.all(),
+        required=False,
+        widget=APISelect(api_url="/api/ipam/port-template-groups/"),
+    )
+    tenant = forms.ModelChoiceField(
+        queryset=Tenant.objects.all(),
+        required=False,
+        widget=APISelect(api_url="/api/tenancy/tenants/"),
+    )
+    status = (
+        forms.ChoiceField(
+            choices=add_blank_choice(PORT_STATUS_CHOICES),
+            required=False,
+            widget=StaticSelect2(),
+        ),
+    )
+    types = forms.ChoiceField(
+        choices=add_blank_choice(PORT_TYPES_CHOICES),
+        required=False,
+        widget=StaticSelect2(),
+    )
+    role = forms.ModelChoiceField(
+        queryset=Role.objects.all(),
+        required=False,
+        widget=APISelect(api_url="/api/ipam/roles/"),
+    )
+    description = forms.CharField(max_length=100, required=False)
+
+    class Meta:
+        nullable_fields = ["site", "group", "tenant", "role", "description"]
+
+
+class PortTemplatesFilterForm(BootstrapMixin, CustomFieldFilterForm):
+    model = PortTemplate
+    q = forms.CharField(required=False, label="Search")
+    site = FilterChoiceField(
+        queryset=Site.objects.all(),
+        to_field_name="slug",
+        null_label="-- Global --",
+        widget=APISelectMultiple(
+            api_url="/api/dcim/sites/", value_field="slug", null_option=True
+        ),
+    )
+    group_id = FilterChoiceField(
+        queryset=PortTemplateGroup.objects.all(),
+        label="Port-templates group",
+        null_label="-- None --",
+        widget=APISelectMultiple(
+            api_url="/api/ipam/port-template-groups/",
+            null_option=True),
+    )
+    tenant = FilterChoiceField(
+        queryset=Tenant.objects.all(),
+        to_field_name="slug",
+        null_label="-- None --",
+        widget=APISelectMultiple(
+            api_url="/api/tenancy/tenants/",
+            value_field="slug",
+            null_option=True),
+    )
+    status = forms.MultipleChoiceField(
+        choices=PORT_STATUS_CHOICES,
+        required=False,
+        widget=StaticSelect2Multiple())
+    types = forms.MultipleChoiceField(
+        choices=PORT_TYPES_CHOICES,
+        required=False,
+        widget=StaticSelect2Multiple())
+    role = FilterChoiceField(
+        queryset=Role.objects.all(),
+        to_field_name="slug",
+        null_label="-- None --",
+        widget=APISelectMultiple(
+            api_url="/api/ipam/roles/", value_field="slug", null_option=True
+        ),
     )
 
 

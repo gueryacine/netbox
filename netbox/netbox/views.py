@@ -21,7 +21,7 @@ from dcim.tables import (
 )
 from extras.models import ObjectChange, ReportResult, TopologyMap
 from ipam.filters import AggregateFilter, IPAddressFilter, PrefixFilter, VLANFilter, VRFFilter
-from ipam.models import Aggregate, IPAddress, Prefix, VLAN, VRF
+from ipam.models import Aggregate, IPAddress, Prefix, VLAN, VRF , PortTemplate
 from ipam.tables import AggregateTable, IPAddressTable, PrefixTable, VLANTable, VRFTable
 from secrets.filters import SecretFilter
 from secrets.models import Secret
@@ -194,6 +194,7 @@ class HomeView(View):
             'prefix_count': Prefix.objects.count(),
             'ipaddress_count': IPAddress.objects.count(),
             'vlan_count': VLAN.objects.count(),
+            'port_template_count': PortTemplate.objects.count(),
 
             # Circuits
             'provider_count': Provider.objects.count(),

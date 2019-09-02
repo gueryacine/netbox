@@ -9,8 +9,8 @@ from extras.filters import CustomFieldFilterSet
 from tenancy.models import Tenant
 from utilities.filters import NameSlugSearchFilterSet, NumericInFilter, TagFilter
 from virtualization.models import VirtualMachine
-from .constants import IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from .constants import IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES, PORT_STATUS_CHOICES, PORT_TYPES_CHOICES
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 
 class VRFFilter(CustomFieldFilterSet, django_filters.FilterSet):
@@ -173,6 +173,12 @@ class PrefixFilter(CustomFieldFilterSet, django_filters.FilterSet):
     vlan_vid = django_filters.NumberFilter(
         field_name='vlan__vid',
         label='VLAN number (1-4095)',
+    )
+    port_template_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=PortTemplate.objects.all(), label="Port Template (ID)"
+    )
+    port_template = django_filters.NumberFilter(
+        field_name="port_template__name", label="Port Template Name"
     )
     role_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Role.objects.all(),
@@ -452,6 +458,86 @@ class VLANFilter(CustomFieldFilterSet, django_filters.FilterSet):
     class Meta:
         model = VLAN
         fields = ['vid', 'name']
+
+    def search(self, queryset, name, value):
+        if not value.strip():
+            return queryset
+        qs_filter = Q(name__icontains=value) | Q(description__icontains=value)
+        try:
+            qs_filter |= Q(vid=int(value.strip()))
+        except ValueError:
+            pass
+        return queryset.filter(qs_filter)
+
+
+class PortTemplatesGroupFilter(NameSlugSearchFilterSet):
+    site_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Site.objects.all(), label='Site (ID)'
+    )
+    site = django_filters.ModelMultipleChoiceFilter(
+        field_name='site__slug',
+        queryset=Site.objects.all(),
+        to_field_name='slug',
+        label='Site (slug)',
+    )
+
+    class Meta:
+        model = PortTemplateGroup
+        fields = ['name', 'slug']
+
+
+class PortTemplatesFilter(CustomFieldFilterSet, django_filters.FilterSet):
+    id__in = NumericInFilter(field_name='id', lookup_expr='in')
+    q = django_filters.CharFilter(method='search', label='Search')
+    site_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Site.objects.all(), label='Site (ID)'
+    )
+    site = django_filters.ModelMultipleChoiceFilter(
+        field_name='site__slug',
+        queryset=Site.objects.all(),
+        to_field_name='slug',
+        label='Site (slug)',
+    )
+    group_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=PortTemplateGroup.objects.all(), label='Group (ID)'
+    )
+    group = django_filters.ModelMultipleChoiceFilter(
+        field_name='group__slug',
+        queryset=PortTemplateGroup.objects.all(),
+        to_field_name='slug',
+        label='Group',
+    )
+    tenant_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Tenant.objects.all(), label='Tenant (ID)'
+    )
+    tenant = django_filters.ModelMultipleChoiceFilter(
+        field_name='tenant__slug',
+        queryset=Tenant.objects.all(),
+        to_field_name='slug',
+        label='Tenant (slug)',
+    )
+    role_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Role.objects.all(), label='Role (ID)'
+    )
+    role = django_filters.ModelMultipleChoiceFilter(
+        field_name='role__slug',
+        queryset=Role.objects.all(),
+        to_field_name='slug',
+        label='Role (slug)',
+    )
+    status = (
+        django_filters.MultipleChoiceFilter(
+            choices=PORT_STATUS_CHOICES, null_value=None
+        ),
+    )
+    types = django_filters.MultipleChoiceFilter(
+        choices=PORT_TYPES_CHOICES, null_value=None
+    )
+    tag = TagFilter()
+
+    class Meta:
+        model = PortTemplate
+        fields = ['name']
 
     def search(self, queryset, name, value):
         if not value.strip():

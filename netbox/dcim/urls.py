@@ -155,6 +155,7 @@ urlpatterns = [
     url(r'^devices/(?P<pk>\d+)/config/$', views.DeviceConfigView.as_view(), name='device_config'),
     url(r'^devices/(?P<pk>\d+)/add-secret/$', secret_add, name='device_addsecret'),
     url(r'^devices/(?P<device>\d+)/services/assign/$', ServiceCreateView.as_view(), name='device_service_assign'),
+    url(r"^devices/(?P<pk>\d+)/port-template-groups/assign/$", views.DeviceAssignPortTemplatesGroupsView.as_view(), name="device_port_template_group_assign"),
     url(r'^devices/(?P<object_id>\d+)/images/add/$', ImageAttachmentEditView.as_view(), name='device_add_image', kwargs={'model': Device}),
 
     # Console ports

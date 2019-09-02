@@ -4,7 +4,7 @@ from django_tables2.utils import Accessor
 from dcim.models import Interface
 from tenancy.tables import COL_TENANT
 from utilities.tables import BaseTable, BooleanColumn, ToggleColumn
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 RIR_UTILIZATION = """
 <div class="progress">
@@ -45,6 +45,10 @@ ROLE_PREFIX_COUNT = """
 
 ROLE_VLAN_COUNT = """
 <a href="{% url 'ipam:vlan_list' %}?role={{ record.slug }}">{{ value }}</a>
+"""
+
+ROLE_PORT_TEMPLATE_COUNT = """
+<a href="{% url 'ipam:port_template_list' %}?role={{ record.slug }}">{{ value }}</a>
 """
 
 ROLE_ACTIONS = """
@@ -179,6 +183,62 @@ TENANT_LINK = """
 """
 
 
+PORT_TEMPLATE_LINK = """
+{% if record.pk %}
+    <a href="{{ record.get_absolute_url }}">{{ record.name }}</a>
+{% elif perms.ipam.add_port %}
+    <a href="{% url 'ipam:port_template_add' %}?group={{ port_template_group.pk }}{% if port_template_group.site %}&site={{ port_template_group.site.pk }}{% endif %}" class="btn btn-xs btn-success">{{ record.available }} PORT{{ record.available|pluralize }} available</a>
+{% else %}
+    {{ record.available }} PORT{{ record.available|pluralize }} available
+{% endif %}
+"""
+
+PORT_TEMPLATE_PREFIXES = """
+{% for prefix in record.prefixes.all %}
+    <a href="{% url 'ipam:prefix' pk=prefix.pk %}">{{ prefix }}</a>{% if not forloop.last %}<br />{% endif %}
+{% empty %}
+    &mdash;
+{% endfor %}
+"""
+
+PORT_TEMPLATE_ROLE_LINK = """
+{% if record.role %}
+    <a href="{% url 'ipam:port_template_list' %}?role={{ record.role.slug }}">{{ record.role }}</a>
+{% else %}
+    &mdash;
+{% endif %}
+"""
+
+PORTGROUP_ACTIONS = """
+<a href="{% url 'ipam:port_template_group_changelog' pk=record.pk %}" class="btn btn-default btn-xs" title="Changelog">
+    <i class="fa fa-history"></i>
+</a>
+{% if perms.ipam.change_port_template_group %}
+    <a href="{% url 'ipam:port_template_group_edit' pk=record.pk %}" class="btn btn-xs btn-warning"><i class="glyphicon glyphicon-pencil" aria-hidden="true"></i></a>
+{% endif %}
+"""
+
+PORT_TEMPLATE_MEMBER_UNTAGGED = """
+{% if record.untagged_port_id == port.pk %}
+    <i class="glyphicon glyphicon-ok">
+{% endif %}
+"""
+
+PORT_TEMPLATE_MEMBER_ACTIONS = """
+{% if perms.dcim.change_interface %}
+    <a href="{% if record.device %}{% url 'dcim:interface_edit' pk=record.pk %}{% else %}{% url 'virtualization:interface_edit' pk=record.pk %}{% endif %}" class="btn btn-xs btn-warning"><i class="glyphicon glyphicon-pencil"></i></a>
+{% endif %}
+"""
+
+PORT_TEMPLATE_TYPE_LABEL = """
+{% if record.pk %}
+    <span class="label label-{{ record.get_status_class }}">{{ record.get_status_display }}</span>
+{% else %}
+    <span class="label label-success">Available</span>
+{% endif %}
+"""
+
+
 #
 # VRFs
 #
@@ -288,11 +348,17 @@ class RoleTable(BaseTable):
         orderable=False,
         verbose_name='VLANs'
     )
+    port_template_count = tables.TemplateColumn(
+        accessor=Accessor('port_template.count'),
+        template_code=ROLE_PORT_TEMPLATE_COUNT,
+        orderable=False,
+        verbose_name='Port-templates',
+    )
     actions = tables.TemplateColumn(template_code=ROLE_ACTIONS, attrs={'td': {'class': 'text-right noprint'}}, verbose_name='')
 
     class Meta(BaseTable.Meta):
         model = Role
-        fields = ('pk', 'name', 'prefix_count', 'vlan_count', 'slug', 'actions')
+        fields = ('pk', 'name', 'prefix_count', 'vlan_count', 'port_template_count', 'slug', 'actions')
 
 
 #
@@ -461,6 +527,175 @@ class InterfaceVLANTable(BaseTable):
     class Meta(BaseTable.Meta):
         model = VLAN
         fields = ('vid', 'tagged', 'site', 'group', 'name', 'tenant', 'status', 'role', 'description')
+
+    def __init__(self, interface, *args, **kwargs):
+        self.interface = interface
+        super().__init__(*args, **kwargs)
+
+
+
+#
+# PortTemplateGroups
+#
+
+
+class PortTemplateGroupTable(BaseTable):
+    pk = ToggleColumn()
+    name = tables.LinkColumn(verbose_name='Name')
+    site = tables.LinkColumn(
+        'dcim:site', args=[Accessor('site.slug')], verbose_name='Site'
+    )
+    port_count = tables.Column(verbose_name='Port-templates')
+    slug = tables.Column(verbose_name='Slug')
+    actions = tables.TemplateColumn(
+        template_code=PORTGROUP_ACTIONS,
+        attrs={'td': {'class': 'text-right'}},
+        verbose_name='',
+    )
+
+    class Meta(BaseTable.Meta):
+        model = PortTemplateGroup
+        fields = ('pk', 'name', 'site', 'port_count', 'slug', 'actions')
+
+
+#
+# PortTemplate
+#
+
+
+class PortTemplateTable(BaseTable):
+    pk = ToggleColumn()
+    name = tables.TemplateColumn(PORT_TEMPLATE_LINK, verbose_name='Name')
+    site = tables.LinkColumn('dcim:site', args=[Accessor('site.slug')])
+    group = tables.LinkColumn(
+        'ipam:port_template_group_ports', args=[
+            Accessor('group.pk')], verbose_name='Group')
+    tenant = tables.TemplateColumn(template_code=COL_TENANT)
+    status = tables.TemplateColumn(STATUS_LABEL)
+    role = tables.TemplateColumn(PORT_TEMPLATE_ROLE_LINK)
+
+    class Meta(BaseTable.Meta):
+        model = PortTemplate
+        fields = (
+            'pk',
+            'name',
+            'site',
+            'group',
+            'tenant',
+            'status',
+            'types',
+            'role',
+            'description',
+        )
+        row_attrs = {
+            'class': lambda record: 'success' if not isinstance(
+                record, PortTemplate) else ''}
+
+
+class PortTemplateDetailTable(PortTemplateTable):
+    prefixes = tables.TemplateColumn(
+        PORT_TEMPLATE_PREFIXES, orderable=False, verbose_name='Prefixes'
+    )
+
+    class Meta(PortTemplateTable.Meta):
+        fields = (
+            'pk',
+            'name',
+            'site',
+            'group',
+            'prefixes',
+            'tenant',
+            'status',
+            'role',
+            'description',
+        )
+
+
+class PortTemplateMemberTable(BaseTable):
+    parent = tables.LinkColumn(order_by=['device', 'virtual_machine'])
+    name = tables.LinkColumn(verbose_name='Interface')
+    actions = tables.TemplateColumn(
+        template_code=PORT_TEMPLATE_MEMBER_ACTIONS,
+        attrs={'td': {'class': 'text-right'}},
+        verbose_name='',
+    )
+
+    class Meta(BaseTable.Meta):
+        model = Interface
+        fields = ('parent', 'name', 'actions')
+
+
+class PortTemplateVLANTable(BaseTable):
+    '''
+    List VLANs assigned to a specific port.
+    '''
+
+    vid = tables.LinkColumn(
+        'ipam:vlan',
+        args=[
+            Accessor('pk')],
+        verbose_name='ID')
+    tagged = BooleanColumn()
+    site = tables.LinkColumn('dcim:site', args=[Accessor('site.slug')])
+    group = tables.Column(
+        accessor=Accessor('group.name'),
+        verbose_name='Group')
+    tenant = tables.TemplateColumn(template_code=COL_TENANT)
+    status = tables.TemplateColumn(STATUS_LABEL)
+    types = tables.TemplateColumn(STATUS_LABEL)
+    role = tables.TemplateColumn(VLAN_ROLE_LINK)
+
+    class Meta(BaseTable.Meta):
+        model = VLAN
+        fields = (
+            'vid',
+            'tagged',
+            'site',
+            'group',
+            'name',
+            'tenant',
+            'status',
+            'role',
+            'description',
+        )
+
+    def __init__(self, port_template, *args, **kwargs):
+        self.port_template = port_template
+        super().__init__(*args, **kwargs)
+
+
+class InterfacePortTemplateTable(BaseTable):
+    '''
+    List PORTs assigned to a specific Interface.
+    '''
+
+    vid = tables.LinkColumn(
+        'ipam:port',
+        args=[
+            Accessor('pk')],
+        verbose_name='ID')
+    tagged = BooleanColumn()
+    site = tables.LinkColumn('dcim:site', args=[Accessor('site.slug')])
+    group = tables.Column(
+        accessor=Accessor('group.name'),
+        verbose_name='Group')
+    tenant = tables.TemplateColumn(template_code=COL_TENANT)
+    status = tables.TemplateColumn(STATUS_LABEL)
+    role = tables.TemplateColumn(PORT_TEMPLATE_ROLE_LINK)
+
+    class Meta(BaseTable.Meta):
+        model = PortTemplate
+        fields = (
+            'vid',
+            'tagged',
+            'site',
+            'group',
+            'name',
+            'tenant',
+            'status',
+            'role',
+            'description',
+        )
 
     def __init__(self, interface, *args, **kwargs):
         self.interface = interface

@@ -14,7 +14,7 @@ from utilities.views import (
 from virtualization.models import VirtualMachine
 from . import filters, forms, tables
 from .constants import IPADDRESS_ROLE_ANYCAST, PREFIX_STATUS_ACTIVE, PREFIX_STATUS_DEPRECATED, PREFIX_STATUS_RESERVED
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 
 def add_available_prefixes(parent, prefix_list):
@@ -434,7 +434,7 @@ class RoleBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
 #
 
 class PrefixListView(ObjectListView):
-    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'vlan', 'role')
+    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'port_template', 'vlan', 'role')
     filter = filters.PrefixFilter
     filter_form = forms.PrefixFilterForm
     table = tables.PrefixDetailTable
@@ -497,7 +497,7 @@ class PrefixPrefixesView(View):
 
         # Child prefixes table
         child_prefixes = prefix.get_child_prefixes().select_related(
-            'site', 'vlan', 'role',
+            'site', 'vlan', 'port_template', 'role',
         ).annotate_depth(limit=0)
 
         # Annotate available prefixes
@@ -598,7 +598,7 @@ class PrefixBulkImportView(PermissionRequiredMixin, BulkImportView):
 
 class PrefixBulkEditView(PermissionRequiredMixin, BulkEditView):
     permission_required = 'ipam.change_prefix'
-    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'vlan', 'role')
+    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'vlan', 'port_template', 'role')
     filter = filters.PrefixFilter
     table = tables.PrefixTable
     form = forms.PrefixBulkEditForm
@@ -607,7 +607,7 @@ class PrefixBulkEditView(PermissionRequiredMixin, BulkEditView):
 
 class PrefixBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
     permission_required = 'ipam.delete_prefix'
-    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'vlan', 'role')
+    queryset = Prefix.objects.select_related('site', 'vrf__tenant', 'tenant', 'vlan', 'port_template', 'role')
     filter = filters.PrefixFilter
     table = tables.PrefixTable
     default_return_url = 'ipam:prefix_list'
@@ -948,6 +948,203 @@ class VLANBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
     filter = filters.VLANFilter
     table = tables.VLANTable
     default_return_url = 'ipam:vlan_list'
+
+
+#
+# PortTemplates groups
+#
+
+
+class PortTemplatesGroupListView(ObjectListView):
+    queryset = PortTemplateGroup.objects.select_related('site').annotate(
+        port_template_count=Count('PortTemplates')
+    )
+    filter = filters.PortTemplatesGroupFilter
+    filter_form = forms.PortTemplatesGroupFilterForm
+    table = tables.PortTemplateGroupTable
+    template_name = 'ipam/port_template_group_list.html'
+
+
+class PortTemplatesGroupCreateView(PermissionRequiredMixin, ObjectEditView):
+    permission_required = 'ipam.add_port_template_group'
+    model = PortTemplateGroup
+    model_form = forms.PortTemplatesGroupForm
+    default_return_url = 'ipam:port_template_group_list'
+
+
+class PortTemplatesGroupEditView(PortTemplatesGroupCreateView):
+    permission_required = 'ipam.change_port_template_group'
+
+
+class PortTemplatesGroupBulkImportView(PermissionRequiredMixin, BulkImportView):
+    permission_required = 'ipam.add_port_template_group'
+    model_form = forms.PortTemplatesGroupCSVForm
+    table = tables.PortTemplateGroupTable
+    default_return_url = 'ipam:port_template_group_list'
+
+
+class PortTemplatesGroupBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
+    permission_required = 'ipam.delete_port_template_group'
+    queryset = PortTemplateGroup.objects.select_related('site').annotate(
+        port_template_count=Count('PortTemplates')
+    )
+    filter = filters.PortTemplatesGroupFilter
+    table = tables.PortTemplateGroupTable
+    default_return_url = 'ipam:port_template_group_list'
+
+
+class PortTemplatesGroupPortTemplatessView(View):
+    def get(self, request, pk):
+
+        port_template_group = get_object_or_404(
+            PortTemplateGroup.objects.all(), pk=pk)
+
+        port_templates = PortTemplate.objects.filter(group_id=pk)
+
+        port_template_table = tables.PortTemplateDetailTable(port_templates)
+        if request.user.has_perm('ipam.change_port_template') or request.user.has_perm(
+                'ipam.delete_port_template'):
+            port_template_table.columns.show('pk')
+        port_template_table.columns.hide('site')
+        port_template_table.columns.hide('group')
+
+        paginate = {
+            'paginator_class': EnhancedPaginator,
+            'per_page': request.GET.get('per_page', settings.PAGINATE_COUNT),
+        }
+        RequestConfig(request, paginate).configure(port_template_table)
+
+        # Compile permissions list for rendering the object table
+        permissions = {
+            'add': request.user.has_perm('ipam.add_port_template'),
+            'change': request.user.has_perm('ipam.change_port_template'),
+            'delete': request.user.has_perm('ipam.delete_port_template'),
+        }
+
+        return render(
+            request,
+            'ipam/port_template_group_ports.html',
+            {
+                'port_template_group': port_template_group,
+                'port_template_table': port_template_table,
+                'permissions': permissions,
+            },
+        )
+
+
+
+
+
+#
+# PortTemplatess
+#
+
+
+class PortTemplatesListView(ObjectListView):
+    queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role').prefetch_related('prefixes')
+    filter = filters.PortTemplatesFilter
+    filter_form = forms.PortTemplatesFilterForm
+    table = tables.PortTemplateDetailTable
+    template_name = 'ipam/port_template_list.html'
+
+
+class PortTemplatesView(View):
+    def get(self, request, pk):
+
+        port_template = get_object_or_404(PortTemplate.objects.select_related('site__region', 'tenant__group', 'role'), pk=pk)
+        prefixes = Prefix.objects.filter(port_template=port_template).select_related('vrf', 'site', 'role')
+        prefix_table = tables.PrefixTable(list(prefixes), orderable=False)
+        prefix_table.exclude = ('port_template',)
+
+        # Get assigned VLANs and annotate whether each is tagged or untagged
+        vlans = []
+        if port_template.untagged_vlan is not None:
+            vlans.append(port_template.untagged_vlan)
+            vlans[0].tagged = False
+        for vlan in port_template.tagged_vlans.select_related('site', 'group', 'tenant', 'role'):
+            vlan.tagged = True
+            vlans.append(vlan)
+        vlan_table = tables.PortTemplateVLANTable(
+            port_template=port_template, data=vlans, orderable=False)
+
+        return render(request,
+                      'ipam/port_template.html',
+                      {'port_template': port_template,
+                       'prefix_table': prefix_table,
+                       'vlan_table': vlan_table},
+                      )
+
+
+class PortTemplatesMembersView(View):
+    def get(self, request, pk):
+
+        port_template = get_object_or_404(PortTemplate.objects.all(), pk=pk)
+        members = port_template.get_members().select_related('device', 'virtual_machine')
+
+        members_table = tables.PortTemplateMemberTable(members)
+
+        paginate = {
+            'paginator_class': EnhancedPaginator,
+            'per_page': request.GET.get('per_page', settings.PAGINATE_COUNT),
+        }
+        RequestConfig(request, paginate).configure(members_table)
+
+        return render(request,
+                      'ipam/port_template_members.html',
+                      {'port_template': port_template,
+                       'members_table': members_table,
+                       'active_tab': 'members'},
+                      )
+
+
+class PortTemplatesCreateView(PermissionRequiredMixin, ObjectEditView):
+    permission_required = 'ipam.add_port_template'
+    model = PortTemplate
+    model_form = forms.PortTemplatesForm
+    template_name = 'ipam/port_template_edit.html'
+    default_return_url = 'ipam:port_template_list'
+
+
+class PortTemplatesEditView(PortTemplatesCreateView):
+    permission_required = 'ipam.change_port'
+
+
+class PortTemplatesAssignVLANsView(PermissionRequiredMixin, ObjectEditView):
+    permission_required = 'ipam.change_port'
+    model = PortTemplate
+    model_form = forms.PortTemplatesAssignVLANsForm
+
+
+class PortTemplatesDeleteView(PermissionRequiredMixin, ObjectDeleteView):
+    permission_required = 'ipam.delete_port'
+    model = PortTemplate
+    default_return_url = 'ipam:port_template_list'
+
+
+class PortTemplatesBulkImportView(PermissionRequiredMixin, BulkImportView):
+    permission_required = 'ipam.add_port'
+    model_form = forms.PortTemplatesCSVForm
+    table = tables.PortTemplateTable
+    default_return_url = 'ipam:port_template_list'
+
+
+class PortTemplatesBulkEditView(PermissionRequiredMixin, BulkEditView):
+    permission_required = 'ipam.change_port'
+    queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role')
+    filter = filters.PortTemplatesFilter
+    table = tables.PortTemplateTable
+    form = forms.PortTemplatesBulkEditForm
+    default_return_url = 'ipam:port_template_list'
+
+
+class PortTemplatesBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
+    permission_required = 'ipam.delete_port'
+    queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role')
+    filter = filters.PortTemplatesFilter
+    table = tables.PortTemplateTable
+    default_return_url = 'ipam:port_template_list'
+
+
 
 
 #

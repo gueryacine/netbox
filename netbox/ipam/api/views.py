@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from extras.api.views import CustomFieldModelViewSet
 from ipam import filters
-from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF
+from ipam.models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 from utilities.api import FieldChoicesViewSet, ModelViewSet
 from . import serializers
 
@@ -276,6 +276,31 @@ class VLANViewSet(CustomFieldModelViewSet):
     queryset = VLAN.objects.select_related('site', 'group', 'tenant', 'role').prefetch_related('tags')
     serializer_class = serializers.VLANSerializer
     filterset_class = filters.VLANFilter
+
+
+#
+# PortTemplate groups
+#
+
+
+class PortTemplatesGroupViewSet(ModelViewSet):
+    queryset = PortTemplateGroup.objects.select_related("site")
+    serializer_class = serializers.PortTemplatesGroupSerializer
+    filterset_class = filters.PortTemplatesGroupFilter
+
+
+#
+# PortTemplate
+#
+
+
+class PortTemplatesViewSet(CustomFieldModelViewSet):
+    queryset = PortTemplate.objects.select_related(
+        "site", "group", "tenant", "role"
+    ).prefetch_related("tags")
+    serializer_class = serializers.PortTemplatesSerializer
+    filterset_class = filters.PortTemplatesFilter
+
 
 
 #

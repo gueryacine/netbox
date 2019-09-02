@@ -2452,6 +2452,7 @@ class InterfaceTest(APITestCase):
             'mode': IFACE_MODE_TAGGED,
             'untagged_vlan': self.vlan3.id,
             'tagged_vlans': [self.vlan1.id, self.vlan2.id],
+            'port_template': None
         }
 
         url = reverse('dcim-api:interface-list')

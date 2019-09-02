@@ -1,12 +1,12 @@
 
 # Models which support custom fields
 CUSTOMFIELD_MODELS = (
-    'provider', 'circuit',                                         # Circuits
-    'site', 'rack', 'devicetype', 'device',                        # DCIM
-    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service',  # IPAM
-    'secret',                                                      # Secrets
-    'tenant',                                                      # Tenancy
-    'cluster', 'virtualmachine',                                   # Virtualization
+    'provider', 'circuit',                                                        # Circuits
+    'site', 'rack', 'devicetype', 'device',                                       # DCIM
+    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service', 'porttemplate', # IPAM
+    'secret',                                                                     # Secrets
+    'tenant',                                                                     # Tenancy
+    'cluster', 'virtualmachine',                                                  # Virtualization
 )
 
 # Custom field types
@@ -50,7 +50,7 @@ EXPORTTEMPLATE_MODELS = [
     'provider', 'circuit',                                                          # Circuits
     'site', 'region', 'rack', 'rackgroup', 'manufacturer', 'devicetype', 'device',  # DCIM
     'consoleport', 'powerport', 'interface', 'cable', 'virtualchassis',             # DCIM
-    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service',                   # IPAM
+    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service','porttemplate'     # IPAM
     'secret',                                                                       # Secrets
     'tenant',                                                                       # Tenancy
     'cluster', 'virtualmachine',                                                    # Virtualization
@@ -118,12 +118,12 @@ WEBHOOK_CT_CHOICES = (
 
 # Models which support registered webhooks
 WEBHOOK_MODELS = (
-    'provider', 'circuit',                                           # Circuits
-    'site', 'rack', 'devicetype', 'device', 'virtualchassis',        # DCIM
+    'provider', 'circuit',                                                          # Circuits
+    'site', 'rack', 'devicetype', 'device', 'virtualchassis',                       # DCIM
     'consoleport', 'consoleserverport', 'powerport', 'poweroutlet',
     'interface', 'devicebay', 'inventoryitem',
-    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service',    # IPAM
-    'secret',                                                        # Secrets
-    'tenant',                                                        # Tenancy
-    'cluster', 'virtualmachine',                                     # Virtualization
+    'aggregate', 'prefix', 'ipaddress', 'vlan', 'vrf', 'service', 'porttemplate',   # IPAM
+    'secret',                                                                       # Secrets
+    'tenant',                                                                       # Tenancy
+    'cluster', 'virtualmachine',                                                    # Virtualization
 )
