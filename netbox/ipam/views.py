@@ -1050,15 +1050,12 @@ class PortTemplatesGroupPortTemplatessView(View):
         )
 
 
-
-
-
 #
 # PortTemplatess
 #
 
-
-class PortTemplatesListView(ObjectListView):
+class PortTemplatesListView(PermissionRequiredMixin, ObjectListView):
+    permission_required = 'ipam.view_port_template'
     queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role').prefetch_related('prefixes')
     filter = filters.PortTemplatesFilter
     filter_form = forms.PortTemplatesFilterForm

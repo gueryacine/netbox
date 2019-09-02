@@ -602,6 +602,7 @@ class PortTemplateDetailTable(PortTemplateTable):
     prefixes = tables.TemplateColumn(
         PORT_TEMPLATE_PREFIXES, orderable=False, verbose_name='Prefixes'
     )
+    tenant = tables.TemplateColumn(template_code=COL_TENANT)
 
     class Meta(PortTemplateTable.Meta):
         fields = (

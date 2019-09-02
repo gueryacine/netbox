@@ -487,15 +487,7 @@ class PortTemplatesFilter(CustomFieldFilterSet, django_filters.FilterSet):
         to_field_name='slug',
         label='Group',
     )
-    tenant_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Tenant.objects.all(), label='Tenant (ID)'
-    )
-    tenant = django_filters.ModelMultipleChoiceFilter(
-        field_name='tenant__slug',
-        queryset=Tenant.objects.all(),
-        to_field_name='slug',
-        label='Tenant (slug)',
-    )
+
     role_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Role.objects.all(), label='Role (ID)'
     )
@@ -566,15 +558,6 @@ class PortTemplatesFilter(CustomFieldFilterSet, django_filters.FilterSet):
         queryset=PortTemplateGroup.objects.all(),
         to_field_name='slug',
         label='Group',
-    )
-    tenant_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Tenant.objects.all(), label='Tenant (ID)'
-    )
-    tenant = django_filters.ModelMultipleChoiceFilter(
-        field_name='tenant__slug',
-        queryset=Tenant.objects.all(),
-        to_field_name='slug',
-        label='Tenant (slug)',
     )
     role_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Role.objects.all(), label='Role (ID)'

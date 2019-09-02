@@ -1,4 +1,5 @@
 {% extends '_base.html' %}
+{% load custom_links %}
 {% load helpers %}
 
 {% block header %}
@@ -145,7 +146,7 @@
             {% include 'extras/inc/tags_panel.html' with tags=port_template.tags.all url='ipam:port_template_list' %}
 
         </div>
-        <div class="col-md-6">
+        <div class="col-md-8">
             <div class="panel panel-default">
                 <div class="panel-heading">
                     <strong>Prefixes</strong>

@@ -998,7 +998,7 @@ class PortTemplate(ChangeLoggedModel, CustomFieldModel):
         object_id_field='obj_id',
     )
 
-    tags = TaggableManager()
+    tags = TaggableManager(through=TaggedItem)
 
     csv_headers = [
         'site',
