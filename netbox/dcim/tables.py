@@ -531,7 +531,7 @@ class PlatformTable(BaseTable):
 
     class Meta(BaseTable.Meta):
         model = Platform
-        fields = ('pk', 'name', 'manufacturer', 'device_count', 'vm_count', 'slug', 'napalm_driver', 'actions')
+        fields = ('pk', 'name', 'manufacturer', 'device_count', 'vm_count', 'slug', 'napalm_driver','napalm_end_of_sale', 'napalm_end_of_support', 'napalm_end_of_life', 'naplam_is_last_standard', 'actions')
 
 
 #
