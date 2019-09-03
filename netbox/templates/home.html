@@ -202,8 +202,13 @@
                     <p class="list-group-item-text text-muted">Layer two domains, identified by VLAN ID</p>
                 </div>
                 <div class="list-group-item">
+                    {% if perms.ipam.view_port %}
                     <span class="badge pull-right">{{ stats.port_template_count }}</span>
                     <h4 class="list-group-item-heading"><a href="{% url 'ipam:port_template_list' %}">Port-templates</a></h4>
+                    {% else %}
+                    <span class="badge pull-right"><i class="fa fa-lock"></i></span>
+                    <h4 class="list-group-item-heading">Port-templates</h4>
+                    {% endif %}
                     <p class="list-group-item-text text-muted">Port template, Template to Link with interfaces</p>
                 </div>
             </div>
