@@ -632,7 +632,7 @@ class RackFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm):
     )
     group_id = ChainedModelChoiceField(
         label='Rack group',
-        queryset=RackGroup.objects.select_related('site'),
+        queryset=RackGroup.objects.prefetch_related('site'),
         chains=(
             ('site', 'site'),
         ),
@@ -745,7 +745,7 @@ class RackReservationFilterForm(BootstrapMixin, TenancyFilterForm):
         )
     )
     group_id = FilterChoiceField(
-        queryset=RackGroup.objects.select_related('site'),
+        queryset=RackGroup.objects.prefetch_related('site'),
         label='Rack group',
         null_label='-- None --',
         widget=APISelectMultiple(
@@ -1390,14 +1390,14 @@ class DeviceForm(BootstrapMixin, TenancyForm, CustomFieldForm):
                 interface_ids = self.instance.vc_interfaces.values('pk')
 
                 # Collect interface IPs
-                interface_ips = IPAddress.objects.select_related('interface').filter(
+                interface_ips = IPAddress.objects.prefetch_related('interface').filter(
                     family=family, interface_id__in=interface_ids
                 )
                 if interface_ips:
                     ip_list = [(ip.id, '{} ({})'.format(ip.address, ip.interface)) for ip in interface_ips]
                     ip_choices.append(('Interface IPs', ip_list))
                 # Collect NAT IPs
-                nat_ips = IPAddress.objects.select_related('nat_inside').filter(
+                nat_ips = IPAddress.objects.prefetch_related('nat_inside').filter(
                     family=family, nat_inside__interface__in=interface_ids
                 )
                 if nat_ips:
@@ -1709,7 +1709,7 @@ class DeviceFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm)
         )
     )
     rack_group_id = FilterChoiceField(
-        queryset=RackGroup.objects.select_related(
+        queryset=RackGroup.objects.prefetch_related(
             'site'
         ),
         label='Rack group',
@@ -1748,7 +1748,7 @@ class DeviceFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm)
         )
     )
     device_type_id = FilterChoiceField(
-        queryset=DeviceType.objects.select_related(
+        queryset=DeviceType.objects.prefetch_related(
             'manufacturer'
         ),
         label='Model',
@@ -2339,10 +2339,6 @@ class InterfaceCreateForm(ComponentForm, forms.Form):
         if self.parent is not None:
             self.fields['lag'].queryset = Interface.objects.filter(
                 device__in=[self.parent, self.parent.get_vc_master()], type=IFACE_TYPE_LAG
-            )
-            self.fields['port_template'].queryset = PortTemplate.objects.filter(
-                group__in=[
-                    port_template_group for port_template_group in self.parent.port_template_groups.all()]
             )
             self.fields['port_template'].queryset = PortTemplate.objects.filter(
                 group__in=[

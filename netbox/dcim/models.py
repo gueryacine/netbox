@@ -30,18 +30,20 @@ class ComponentTemplateModel(models.Model):
     class Meta:
         abstract = True
 
-    def log_change(self, user, request_id, action):
+    def instantiate(self, device):
         """
-        Log an ObjectChange including the parent DeviceType.
+        Instantiate a new component on the specified Device.
         """
-        ObjectChange(
-            user=user,
-            request_id=request_id,
+        raise NotImplementedError()
+
+    def to_objectchange(self, action):
+        return ObjectChange(
             changed_object=self,
-            related_object=self.device_type,
+            object_repr=str(self),
             action=action,
+            related_object=self.device_type,
             object_data=serialize_object(self)
-        ).save()
+        )
 
 
 class ComponentModel(models.Model):
@@ -53,23 +55,21 @@ class ComponentModel(models.Model):
     class Meta:
         abstract = True
 
-    def log_change(self, user, request_id, action):
-        """
-        Log an ObjectChange including the parent Device/VM.
-        """
+    def to_objectchange(self, action):
+        # Annotate the parent Device/VM
         try:
             parent = getattr(self, 'device', None) or getattr(self, 'virtual_machine', None)
         except ObjectDoesNotExist:
             # The parent device/VM has already been deleted
             parent = None
-        ObjectChange(
-            user=user,
-            request_id=request_id,
+
+        return ObjectChange(
             changed_object=self,
-            related_object=parent,
+            object_repr=str(self),
             action=action,
+            related_object=parent,
             object_data=serialize_object(self)
-        ).save()
+        )
 
     @property
     def parent(self):
@@ -600,7 +600,10 @@ class Rack(ChangeLoggedModel, CustomFieldModel):
 
         # Update racked devices if the assigned Site has been changed.
         if _site_id is not None and self.site_id != _site_id:
-            Device.objects.filter(rack=self).update(site_id=self.site.pk)
+            devices = Device.objects.filter(rack=self)
+            for device in devices:
+                device.site = self.site
+                device.save()
 
     def to_csv(self):
         return (
@@ -657,7 +660,7 @@ class Rack(ChangeLoggedModel, CustomFieldModel):
 
         # Add devices to rack units list
         if self.pk:
-            for device in Device.objects.select_related('device_type__manufacturer', 'device_role')\
+            for device in Device.objects.prefetch_related('device_type__manufacturer', 'device_role')\
                     .annotate(devicebay_count=Count('device_bays'))\
                     .exclude(pk=exclude)\
                     .filter(rack=self, position__gt=0)\
@@ -690,7 +693,7 @@ class Rack(ChangeLoggedModel, CustomFieldModel):
         """
 
         # Gather all devices which consume U space within the rack
-        devices = self.devices.select_related('device_type').filter(position__gte=1).exclude(pk__in=exclude)
+        devices = self.devices.prefetch_related('device_type').filter(position__gte=1).exclude(pk__in=exclude)
 
         # Initialize the rack unit skeleton
         units = list(range(1, self.u_height + 1))
@@ -1340,7 +1343,6 @@ class Platform(ChangeLoggedModel):
         verbose_name='NAPALM arguments',
         help_text='Additional arguments to pass when initiating the NAPALM driver (JSON format)'
     )
-    
     napalm_end_of_sale = models.CharField(
         max_length=50,
         blank=True,
@@ -1365,7 +1367,7 @@ class Platform(ChangeLoggedModel):
         verbose_name='NAPALM Is Last Standard',
     )
 
-    csv_headers = ['name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'napalm_end_of_sale', 'napalm_end_of_support', 'napalm_end_of_life', 'naplam_is_last_standard']
+    csv_headers = ['name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'napalm_end_of_sale', 'napalm_end_of_support', 'napalm_end_of_life', 'naplam_is_last_standard' ]
 
     class Meta:
         ordering = ['name']
@@ -1383,10 +1385,10 @@ class Platform(ChangeLoggedModel):
             self.manufacturer.name if self.manufacturer else None,
             self.napalm_driver,
             self.napalm_args,
+            self.napalm_end_of_life,
             self.napalm_end_of_sale,
             self.napalm_end_of_support,
-            self.napalm_end_of_life,
-            self.naplam_is_last_standard,
+            self.naplam_is_last_standard
         )
 
 
@@ -1715,7 +1717,11 @@ class Device(ChangeLoggedModel, ConfigContextModel, CustomFieldModel):
             )
 
         # Update Site and Rack assignment for any child Devices
-        Device.objects.filter(parent_bay__device=self).update(site=self.site, rack=self.rack)
+        devices = Device.objects.filter(parent_bay__device=self)
+        for device in devices:
+            device.site = self.site
+            device.rack = self.rack
+            device.save()
 
     def to_csv(self):
         return (
@@ -2320,27 +2326,20 @@ class Interface(CableTermination, ComponentModel):
 
         return super().save(*args, **kwargs)
 
-    def log_change(self, user, request_id, action):
-        """
-        Include the connected Interface (if any).
-        """
-
-        # It's possible that an Interface can be deleted _after_ its parent Device/VM, in which case trying to resolve
-        # the component parent will raise DoesNotExist. For more discussion, see
-        # https://github.com/netbox-community/netbox/issues/2323
+    def to_objectchange(self, action):
+        # Annotate the parent Device/VM
         try:
             parent_obj = self.device or self.virtual_machine
         except ObjectDoesNotExist:
             parent_obj = None
 
-        ObjectChange(
-            user=user,
-            request_id=request_id,
+        return ObjectChange(
             changed_object=self,
-            related_object=parent_obj,
+            object_repr=str(self),
             action=action,
+            related_object=parent_obj,
             object_data=serialize_object(self)
-        ).save()
+        )
 
     # TODO: Remove in v2.7
     @property
@@ -2397,10 +2396,6 @@ class Interface(CableTermination, ComponentModel):
     @property
     def is_wireless(self):
         return self.type in WIRELESS_IFACE_TYPES
-
-    @property
-    def is_ethernet(self):
-        return self.form_factor in ETHERNET_IFACE_TYPES
 
     @property
     def is_ethernet(self):
