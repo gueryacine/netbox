@@ -1226,7 +1226,7 @@ class PlatformForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Platform
         fields = [
-            'name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'napalm_end_of_sale', 'napalm_end_of_support', 'napalm_end_of_life', 'naplam_is_last_standard']
+            'name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'end_of_sale', 'end_of_support', 'end_of_life', 'is_last_standard']
         widgets = {
             'manufacturer': APISelect(
                 api_url="/api/dcim/manufacturers/"
