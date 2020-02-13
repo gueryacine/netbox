@@ -14,7 +14,7 @@ from utilities.forms import (
 )
 from virtualization.models import VirtualMachine
 from .choices import *
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRFForm , PortTemplate, PortTemplateGroup
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 IP_FAMILY_CHOICES = [
     ('', 'All'),
@@ -1342,7 +1342,18 @@ class PortTemplatesGroupFilterForm(BootstrapMixin, forms.Form):
             api_url="/api/dcim/sites/", value_field="slug", null_option=True
         ),
     )
-
+    region = FilterChoiceField(
+        queryset=Region.objects.all(),
+        to_field_name='slug',
+        required=False,
+        widget=APISelectMultiple(
+            api_url="/api/dcim/regions/",
+            value_field="slug",
+            filter_for={
+                'site': 'region',
+            }
+        )
+    )
 
 #
 # Port Template
@@ -1355,52 +1366,46 @@ class PortTemplatesForm(BootstrapMixin, TenancyForm, CustomFieldForm):
         required=False,
         widget=APISelect(
             api_url="/api/dcim/sites/",
-            filter_for={"group": "site_id"},
-            attrs={"nullable": "true"},
-        ),
+            filter_for={
+                'group': 'site_id'
+            },
+            attrs={
+                'nullable': 'true',
+            }
+        )
     )
-    group = forms.ModelChoiceField(
-        queryset=PortTemplateGroup.objects.all(),
-        # chains=(("site", "site"),),
+    group = ChainedModelChoiceField(
+        queryset=VLANGroup.objects.all(),
+        # chains=(
+        #     ('site', 'site'),
+        # ),
         required=False,
-        label="Group",
-        widget=APISelect(api_url="/api/ipam/port-template-groups/"),
+        label='Group',
+        widget=APISelect(
+            api_url='/api/ipam/vlan-groups/',
+        )
     )
     tags = TagField(required=False)
 
     class Meta:
         model = PortTemplate
         fields = [
-            "site",
-            "group",
-            "name",
-            "status",
-            "types",
-            "role",
-            "description",
-            "tenant_group",
-            "tenant",
-            "tags",
-            "mode",
-            "untagged_vlan",
-            "tagged_vlans",
-            "tags",
+            'site', 'group', 'vid', 'name', 'status', 'role', 'description', 'tenant_group', 'tenant', 'tags', "untagged_vlan", "tagged_vlans",
         ]
         help_texts = {
-            "site": "Leave blank if this Port-templates spans multiple sites",
-            "group": "Port-templates group (optional)",
-            "name": "Configured Port-templates name",
-            "status": "Operational status of this Port-templates",
-            "types": "Operational types of this Port-templates",
-            "role": "The primary function of this Port-templates",
-            "mode": INTERFACE_MODE_HELP_TEXT,
+            'site': "Leave blank if this PortTemplate spans multiple sites",
+            'group': "PortTemplate group ",
+            'vid': "Configured PortTemplate ID",
+            'name': "Configured VLPortTemplateAN name",
+            'status': "Operational status of this PortTemplate",
+            'role': "The primary function of this PortTemplate",
         }
-        labels = {"mode": "802.1Q Mode"}
+
         widgets = {
-            "types": StaticSelect2(),
-            "status": StaticSelect2(),
-            "mode": StaticSelect2(),
-            "role": APISelect(api_url="/api/ipam/roles/"),
+            'status': StaticSelect2(),
+            'role': APISelect(
+                api_url="/api/ipam/roles/"
+            )
         }
 
     def clean(self):
@@ -1539,17 +1544,17 @@ class PortTemplatesCSVForm(forms.ModelForm):
         error_messages={"invalid_choice": "Tenant not found."},
     )
     status = CSVChoiceField(
-        choices=PORT_STATUS_CHOICES,
-        help_text="Operational status")
-    types = CSVChoiceField(
-        choices=PORT_TYPES_CHOICES,
-        help_text="Operational status")
+        choices=VLANStatusChoices,
+        help_text='Operational status'
+    )
     role = forms.ModelChoiceField(
         queryset=Role.objects.all(),
         required=False,
-        to_field_name="name",
-        help_text="Functional role",
-        error_messages={"invalid_choice": "Invalid role."},
+        to_field_name='name',
+        help_text='Functional role',
+        error_messages={
+            'invalid_choice': 'Invalid role.',
+        }
     )
 
     class Meta:
@@ -1603,15 +1608,10 @@ class PortTemplatesBulkEditForm(BootstrapMixin,AddRemoveTagsForm,CustomFieldBulk
     )
     status = (
         forms.ChoiceField(
-            choices=add_blank_choice(PORT_STATUS_CHOICES),
+            choices=add_blank_choice(VLANStatusChoices),
             required=False,
             widget=StaticSelect2(),
         ),
-    )
-    types = forms.ChoiceField(
-        choices=add_blank_choice(PORT_TYPES_CHOICES),
-        required=False,
-        widget=StaticSelect2(),
     )
     role = forms.ModelChoiceField(
         queryset=Role.objects.all(),
@@ -1653,13 +1653,10 @@ class PortTemplatesFilterForm(BootstrapMixin, CustomFieldFilterForm):
             null_option=True),
     )
     status = forms.MultipleChoiceField(
-        choices=PORT_STATUS_CHOICES,
+        choices=VLANStatusChoices,
         required=False,
         widget=StaticSelect2Multiple())
-    types = forms.MultipleChoiceField(
-        choices=PORT_TYPES_CHOICES,
-        required=False,
-        widget=StaticSelect2Multiple())
+
     role = FilterChoiceField(
         queryset=Role.objects.all(),
         to_field_name="slug",

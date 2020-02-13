@@ -301,7 +301,7 @@ class VLANViewSet(CustomFieldModelViewSet):
 class PortTemplatesGroupViewSet(ModelViewSet):
     queryset = PortTemplateGroup.objects.select_related("site")
     serializer_class = serializers.PortTemplatesGroupSerializer
-    filterset_class = filters.PortTemplatesGroupFilter
+    filterset_class = filters.PortTemplatesGroupFilterSet
 
 
 #
@@ -314,7 +314,7 @@ class PortTemplatesViewSet(CustomFieldModelViewSet):
         "site", "group", "tenant", "role"
     ).prefetch_related("tags")
     serializer_class = serializers.PortTemplatesSerializer
-    filterset_class = filters.PortTemplatesFilter
+    filterset_class = filters.PortTemplatesFilterSet
 
 
 

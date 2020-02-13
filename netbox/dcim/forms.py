@@ -1478,7 +1478,7 @@ class PlatformForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Platform
         fields = [
-            'name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'napalm_end_of_sale', 'napalm_end_of_support', 'napalm_end_of_life', 'naplam_is_last_standard']
+            'name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'end_of_sale', 'end_of_support', 'end_of_life', 'is_last_standard']
         widgets = {
             'manufacturer': APISelect(
                 api_url="/api/dcim/manufacturers/"
@@ -2451,7 +2451,7 @@ class PowerOutletCSVForm(forms.ModelForm):
         # Limit PowerPort choices to those belonging to this device (or VC master)
         if self.is_bound:
             try:
-                device = self.fields['device'].
+                device = self.fields['device'].to_python(self.data['device'])
             except forms.ValidationError:
                 device = None
         else:
@@ -2552,12 +2552,12 @@ class InterfaceForm(InterfaceCommonForm, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Interface
         fields = [
-            'device', 'name', 'form_factor', 'enabled', 'lag', 'mac_address', 'mtu', 'mgmt_only', 'description',
+            'device', 'name', 'type', 'enabled', 'lag', 'mac_address', 'mtu', 'mgmt_only', 'description',
             'mode', 'untagged_vlan', 'tagged_vlans', 'tags','port_template',
         ]
         widgets = {
             'device': forms.HiddenInput(),
-            'form_factor': StaticSelect2(),
+            'type': StaticSelect2(),
             'lag': StaticSelect2(),
             'port_template': StaticSelect2(),
             'mode': StaticSelect2(),
@@ -2605,7 +2605,7 @@ class InterfaceForm(InterfaceCommonForm, BootstrapMixin, forms.ModelForm):
 
         elif self.cleaned_data['mode'] == IFACE_MODE_TAGGED_ALL:
             self.cleaned_data['tagged_vlans'] = []
-   def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs):
         self.instance.save()
         if self.instance.port_template is not None:
             self.instance.mode = self.instance.port_template.mode

@@ -1238,8 +1238,31 @@ class Platform(ChangeLoggedModel):
         verbose_name='NAPALM arguments',
         help_text='Additional arguments to pass when initiating the NAPALM driver (JSON format)'
     )
+    end_of_sale = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='End of sale',
+        help_text=''
+    )
+    end_of_support = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='End of support',
+        help_text=''
+    )
+    end_of_life = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='End of life',
+        help_text=''
+    )
 
-    csv_headers = ['name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args']
+    is_last_standard = models.BooleanField(
+        default=False,
+        verbose_name='Is Last Standard',
+    )
+
+    csv_headers = ['name', 'slug', 'manufacturer', 'napalm_driver', 'napalm_args', 'end_of_sale', 'end_of_support', 'end_of_life', 'is_last_standard']
 
     class Meta:
         ordering = ['name']
@@ -1257,6 +1280,10 @@ class Platform(ChangeLoggedModel):
             self.manufacturer.name if self.manufacturer else None,
             self.napalm_driver,
             self.napalm_args,
+            self.end_of_life,
+            self.end_of_sale,
+            self.end_of_support,
+            self.is_last_standard
         )
 
 

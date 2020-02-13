@@ -1045,6 +1045,10 @@ class PortTemplate(ChangeLoggedModel, CustomFieldModel):
         blank=True,
         null=True,
     )
+    vid = models.PositiveSmallIntegerField(
+        verbose_name='ID',
+        validators=[MinValueValidator(1), MaxValueValidator(4094)]
+    )
     name = models.CharField(max_length=64)
     tenant = models.ForeignKey(
         to='tenancy.Tenant',
@@ -1053,15 +1057,12 @@ class PortTemplate(ChangeLoggedModel, CustomFieldModel):
         blank=True,
         null=True,
     )
-    status = models.PositiveSmallIntegerField(
-        choices=PORT_STATUS_CHOICES, default=1, verbose_name='Status'
+    status = models.CharField(
+        max_length=50,
+        choices=VLANStatusChoices,
+        default=VLANStatusChoices.STATUS_ACTIVE
     )
-    types = models.PositiveSmallIntegerField(
-        choices=PORT_TYPES_CHOICES, default=1, verbose_name='Type', null=True
-    )
-    mode = models.PositiveSmallIntegerField(
-        choices=IFACE_MODE_CHOICES, blank=True, null=True
-    )
+
     untagged_vlan = models.ForeignKey(
         to='ipam.VLAN',
         on_delete=models.SET_NULL,
@@ -1098,9 +1099,7 @@ class PortTemplate(ChangeLoggedModel, CustomFieldModel):
         'name',
         'tenant',
         'status',
-        'types',
         'role',
-        'mode',
         'description',
     ]
 

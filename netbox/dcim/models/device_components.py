@@ -583,13 +583,21 @@ class Interface(CableTermination, ComponentModel):
         blank=True,
         verbose_name='Tagged VLANs'
     )
+    port_template = models.ForeignKey(
+        to='ipam.PortTemplate',
+        on_delete=models.SET_NULL,
+        related_name='PortTemplate',
+        null=True,
+        blank=True,
+        verbose_name='Porttemplates',
+    )
 
     objects = InterfaceManager()
     tags = TaggableManager(through=TaggedItem)
 
     csv_headers = [
         'device', 'virtual_machine', 'name', 'lag', 'type', 'enabled', 'mac_address', 'mtu', 'mgmt_only',
-        'description', 'mode',
+        'description', 'mode', 'port_template'
     ]
 
     class Meta:
@@ -615,6 +623,7 @@ class Interface(CableTermination, ComponentModel):
             self.mgmt_only,
             self.description,
             self.get_mode_display(),
+            self.port_template,
         )
 
     def clean(self):
@@ -668,6 +677,16 @@ class Interface(CableTermination, ComponentModel):
                 'untagged_vlan': "The untagged VLAN ({}) must belong to the same site as the interface's parent "
                                  "device/VM, or it must be global".format(self.untagged_vlan)
             })
+
+        if self.port_template != None:
+            if ((self.port_template.types != 1 and self.is_ethernet) or 
+                (self.port_template.types != 3 and self.is_lag) or 
+                (self.port_template.types != 2 and self.is_virtual)):
+                raise ValidationError({
+                    'port_template': 'The type of the port template ({}) must be same as the Form Factor selected'.format(
+                        self.port_template
+                    )
+                })
 
     def save(self, *args, **kwargs):
 
@@ -741,8 +760,15 @@ class Interface(CableTermination, ComponentModel):
         return self.type == InterfaceTypeChoices.TYPE_LAG
 
     @property
+    def is_ethernet(self):
+        return self.type in ETHERNET_IFACE_TYPES
+
+    @property
     def count_ipaddresses(self):
         return self.ip_addresses.count()
+
+
+
 
 
 #

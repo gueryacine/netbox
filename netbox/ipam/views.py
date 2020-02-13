@@ -990,7 +990,7 @@ class PortTemplatesGroupListView(ObjectListView):
     queryset = PortTemplateGroup.objects.select_related('site').annotate(
         port_template_count=Count('PortTemplates')
     )
-    filter = filters.PortTemplatesGroupFilter
+    filter = filters.PortTemplatesGroupFilterSet
     filter_form = forms.PortTemplatesGroupFilterForm
     table = tables.PortTemplateGroupTable
     template_name = 'ipam/port_template_group_list.html'
@@ -1019,7 +1019,7 @@ class PortTemplatesGroupBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
     queryset = PortTemplateGroup.objects.select_related('site').annotate(
         port_template_count=Count('PortTemplates')
     )
-    filter = filters.PortTemplatesGroupFilter
+    filter = filters.PortTemplatesGroupFilterSet
     table = tables.PortTemplateGroupTable
     default_return_url = 'ipam:port_template_group_list'
 
@@ -1070,7 +1070,7 @@ class PortTemplatesGroupPortTemplatessView(View):
 class PortTemplatesListView(PermissionRequiredMixin, ObjectListView):
     permission_required = 'ipam.view_port_template'
     queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role').prefetch_related('prefixes')
-    filter = filters.PortTemplatesFilter
+    filter = filters.PortTemplatesFilterSet
     filter_form = forms.PortTemplatesFilterForm
     table = tables.PortTemplateDetailTable
     template_name = 'ipam/port_template_list.html'
@@ -1159,7 +1159,7 @@ class PortTemplatesBulkImportView(PermissionRequiredMixin, BulkImportView):
 class PortTemplatesBulkEditView(PermissionRequiredMixin, BulkEditView):
     permission_required = 'ipam.change_port'
     queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role')
-    filter = filters.PortTemplatesFilter
+    filter = filters.PortTemplatesFilterSet
     table = tables.PortTemplateTable
     form = forms.PortTemplatesBulkEditForm
     default_return_url = 'ipam:port_template_list'
@@ -1168,7 +1168,7 @@ class PortTemplatesBulkEditView(PermissionRequiredMixin, BulkEditView):
 class PortTemplatesBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):
     permission_required = 'ipam.delete_port'
     queryset = PortTemplate.objects.select_related('site', 'group', 'tenant', 'role')
-    filter = filters.PortTemplatesFilter
+    filter = filters.PortTemplatesFilterSet
     table = tables.PortTemplateTable
     default_return_url = 'ipam:port_template_list'
 

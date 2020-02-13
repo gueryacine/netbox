@@ -164,13 +164,8 @@ class PortTemplatesSerializer(TaggitSerializer, CustomFieldModelSerializer):
     site = NestedSiteSerializer(required=False, allow_null=True)
     group = NestedPortTemplateGroupSerializer(required=False, allow_null=True)
     tenant = NestedTenantSerializer(required=False, allow_null=True)
-    status = ChoiceField(choices=PORT_STATUS_CHOICES, required=False)
-    types = ChoiceField(choices=PORT_TYPES_CHOICES, required=False)
+    status = ChoiceField(choices=VLANStatusChoices, required=False)
     role = NestedRoleSerializer(required=False, allow_null=True)
-    mode = ChoiceField(
-        choices=IFACE_MODE_CHOICES,
-        required=False,
-        allow_null=True)
     untagged_vlan = NestedVLANSerializer(required=False, allow_null=True)
     tagged_vlans = NestedVLANSerializer(
         required=False,
@@ -187,7 +182,6 @@ class PortTemplatesSerializer(TaggitSerializer, CustomFieldModelSerializer):
             'name',
             'tenant',
             'status',
-            'types',
             'role',
             'description',
             'tags',

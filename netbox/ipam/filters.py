@@ -25,6 +25,8 @@ __all__ = (
     'VLANFilterSet',
     'VLANGroupFilterSet',
     'VRFFilterSet',
+    'PortTemplatesGroupFilterSet',
+    'PortTemplatesFilterSet',
 )
 
 
@@ -536,3 +538,104 @@ class ServiceFilterSet(CreatedUpdatedFilterSet):
             return queryset
         qs_filter = Q(name__icontains=value) | Q(description__icontains=value)
         return queryset.filter(qs_filter)
+
+
+
+class PortTemplatesGroupFilterSet(NameSlugSearchFilterSet):
+    region_id = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        label='Region (ID)',
+    )
+    region = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        to_field_name='slug',
+        label='Region (slug)',
+    )
+    site_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Site.objects.all(),
+        label='Site (ID)',
+    )
+    site = django_filters.ModelMultipleChoiceFilter(
+        field_name='site__slug',
+        queryset=Site.objects.all(),
+        to_field_name='slug',
+        label='Site (slug)',
+    )
+
+    class Meta:
+        model = VLANGroup
+        fields = ['id', 'name', 'slug']
+
+
+class PortTemplatesFilterSet(TenancyFilterSet, CustomFieldFilterSet, CreatedUpdatedFilterSet):
+    id__in = NumericInFilter(
+        field_name='id',
+        lookup_expr='in'
+    )
+    q = django_filters.CharFilter(
+        method='search',
+        label='Search',
+    )
+    region_id = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        label='Region (ID)',
+    )
+    region = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        to_field_name='slug',
+        label='Region (slug)',
+    )
+    site_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Site.objects.all(),
+        label='Site (ID)',
+    )
+    site = django_filters.ModelMultipleChoiceFilter(
+        field_name='site__slug',
+        queryset=Site.objects.all(),
+        to_field_name='slug',
+        label='Site (slug)',
+    )
+    group_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=VLANGroup.objects.all(),
+        label='Group (ID)',
+    )
+    group = django_filters.ModelMultipleChoiceFilter(
+        field_name='group__slug',
+        queryset=VLANGroup.objects.all(),
+        to_field_name='slug',
+        label='Group',
+    )
+    role_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Role.objects.all(),
+        label='Role (ID)',
+    )
+    role = django_filters.ModelMultipleChoiceFilter(
+        field_name='role__slug',
+        queryset=Role.objects.all(),
+        to_field_name='slug',
+        label='Role (slug)',
+    )
+    status = django_filters.MultipleChoiceFilter(
+        choices=VLANStatusChoices,
+        null_value=None
+    )
+    tag = TagFilter()
+
+    class Meta:
+        model = VLAN
+        fields = ['vid', 'name']
+
+    def search(self, queryset, name, value):
+        if not value.strip():
+            return queryset
+        qs_filter = Q(name__icontains=value) | Q(description__icontains=value)
+        try:
+            qs_filter |= Q(vid=int(value.strip()))
+        except ValueError:
+            pass
+        return queryset.filter(qs_filter)
+
