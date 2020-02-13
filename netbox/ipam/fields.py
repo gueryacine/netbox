@@ -23,8 +23,9 @@ class BaseIPField(models.Field):
         if not value:
             return value
         try:
+            # Always return a netaddr.IPNetwork object. (netaddr.IPAddress does not provide a mask.)
             return IPNetwork(value)
-        except AddrFormatError as e:
+        except AddrFormatError:
             raise ValidationError("Invalid IP address format: {}".format(value))
         except (TypeError, ValueError) as e:
             raise ValidationError(e)
@@ -32,6 +33,8 @@ class BaseIPField(models.Field):
     def get_prep_value(self, value):
         if not value:
             return None
+        if isinstance(value, list):
+            return [str(self.to_python(v)) for v in value]
         return str(self.to_python(value))
 
     def form_class(self):
@@ -90,5 +93,6 @@ IPAddressField.register_lookup(lookups.NetContainedOrEqual)
 IPAddressField.register_lookup(lookups.NetContains)
 IPAddressField.register_lookup(lookups.NetContainsOrEquals)
 IPAddressField.register_lookup(lookups.NetHost)
+IPAddressField.register_lookup(lookups.NetIn)
 IPAddressField.register_lookup(lookups.NetHostContained)
 IPAddressField.register_lookup(lookups.NetMaskLength)

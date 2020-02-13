@@ -3,21 +3,18 @@ from django.core.exceptions import MultipleObjectsReturned
 from django.core.validators import MaxValueValidator, MinValueValidator
 from taggit.forms import TagField
 
-from dcim.models import Site, Rack, Device, Interface
+from dcim.models import Device, Interface, Rack, Region, Site
 from extras.forms import AddRemoveTagsForm, CustomFieldForm, CustomFieldBulkEditForm, CustomFieldFilterForm
-from tenancy.forms import TenancyForm
-from tenancy.forms import TenancyFilterForm
+from tenancy.forms import TenancyFilterForm, TenancyForm
 from tenancy.models import Tenant
 from utilities.forms import (
     add_blank_choice, APISelect, APISelectMultiple, BootstrapMixin, BulkEditNullBooleanSelect, ChainedModelChoiceField,
-    CSVChoiceField, ExpandableIPAddressField, FilterChoiceField, FlexibleModelChoiceField, ReturnURLForm, SlugField,
-    StaticSelect2, StaticSelect2Multiple, BOOLEAN_WITH_BLANK_CHOICES
+    CSVChoiceField, DatePicker, ExpandableIPAddressField, FilterChoiceField, FlexibleModelChoiceField, ReturnURLForm,
+    SlugField, StaticSelect2, StaticSelect2Multiple, BOOLEAN_WITH_BLANK_CHOICES
 )
 from virtualization.models import VirtualMachine
-from .constants import (
-    IP_PROTOCOL_CHOICES, IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES, PORT_STATUS_CHOICES, PORT_TYPES_CHOICES, IFACE_MODE_ACCESS, IFACE_MODE_TAGGED_ALL
-)
-from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
+from .choices import *
+from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRFForm , PortTemplate, PortTemplateGroup
 
 IP_FAMILY_CHOICES = [
     ('', 'All'),
@@ -164,12 +161,12 @@ class AggregateForm(BootstrapMixin, CustomFieldForm):
         help_texts = {
             'prefix': "IPv4 or IPv6 network",
             'rir': "Regional Internet Registry responsible for this prefix",
-            'date_added': "Format: YYYY-MM-DD",
         }
         widgets = {
             'rir': APISelect(
                 api_url="/api/ipam/rirs/"
-            )
+            ),
+            'date_added': DatePicker(),
         }
 
 
@@ -213,6 +210,9 @@ class AggregateBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEd
         nullable_fields = [
             'date_added', 'description',
         ]
+        widgets = {
+            'date_added': DatePicker(),
+        }
 
 
 class AggregateFilterForm(BootstrapMixin, CustomFieldFilterForm):
@@ -248,7 +248,7 @@ class RoleForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Role
         fields = [
-            'name', 'slug',
+            'name', 'slug', 'weight', 'description',
         ]
 
 
@@ -388,7 +388,7 @@ class PrefixCSVForm(forms.ModelForm):
         help_text='Name of assigned Port-templates', required=False
     )
     status = CSVChoiceField(
-        choices=PREFIX_STATUS_CHOICES,
+        choices=PrefixStatusChoices,
         help_text='Operational status'
     )
     role = forms.ModelChoiceField(
@@ -473,7 +473,7 @@ class PrefixBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEditF
         )
     )
     status = forms.ChoiceField(
-        choices=add_blank_choice(PREFIX_STATUS_CHOICES),
+        choices=add_blank_choice(PrefixStatusChoices),
         required=False,
         widget=StaticSelect2()
     )
@@ -503,8 +503,8 @@ class PrefixBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEditF
 class PrefixFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm):
     model = Prefix
     field_order = [
-        'q', 'within_include', 'family', 'mask_length', 'vrf_id', 'status', 'site', 'role', 'tenant_group', 'tenant',
-        'is_pool', 'expand',
+        'q', 'within_include', 'family', 'mask_length', 'vrf_id', 'status', 'region', 'site', 'role', 'tenant_group',
+        'tenant', 'is_pool', 'expand',
     ]
     q = forms.CharField(
         required=False,
@@ -541,9 +541,21 @@ class PrefixFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm)
         )
     )
     status = forms.MultipleChoiceField(
-        choices=PREFIX_STATUS_CHOICES,
+        choices=PrefixStatusChoices,
         required=False,
         widget=StaticSelect2Multiple()
+    )
+    region = FilterChoiceField(
+        queryset=Region.objects.all(),
+        to_field_name='slug',
+        required=False,
+        widget=APISelectMultiple(
+            api_url="/api/dcim/regions/",
+            value_field="slug",
+            filter_for={
+                'site': 'region'
+            }
+        )
     )
     site = FilterChoiceField(
         queryset=Site.objects.all(),
@@ -778,11 +790,11 @@ class IPAddressCSVForm(forms.ModelForm):
         }
     )
     status = CSVChoiceField(
-        choices=IPADDRESS_STATUS_CHOICES,
+        choices=IPAddressStatusChoices,
         help_text='Operational status'
     )
     role = CSVChoiceField(
-        choices=IPADDRESS_ROLE_CHOICES,
+        choices=IPAddressRoleChoices,
         required=False,
         help_text='Functional role'
     )
@@ -907,12 +919,12 @@ class IPAddressBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEd
         )
     )
     status = forms.ChoiceField(
-        choices=add_blank_choice(IPADDRESS_STATUS_CHOICES),
+        choices=add_blank_choice(IPAddressStatusChoices),
         required=False,
         widget=StaticSelect2()
     )
     role = forms.ChoiceField(
-        choices=add_blank_choice(IPADDRESS_ROLE_CHOICES),
+        choices=add_blank_choice(IPAddressRoleChoices),
         required=False,
         widget=StaticSelect2()
     )
@@ -932,7 +944,7 @@ class IPAddressBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEd
 
 
 class IPAddressAssignForm(BootstrapMixin, forms.Form):
-    vrf = forms.ModelChoiceField(
+    vrf_id = forms.ModelChoiceField(
         queryset=VRF.objects.all(),
         required=False,
         label='VRF',
@@ -941,15 +953,17 @@ class IPAddressAssignForm(BootstrapMixin, forms.Form):
             api_url="/api/ipam/vrfs/"
         )
     )
-    address = forms.CharField(
-        label='IP Address'
+    q = forms.CharField(
+        required=False,
+        label='Search',
     )
 
 
 class IPAddressFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm):
     model = IPAddress
     field_order = [
-        'q', 'parent', 'family', 'mask_length', 'vrf_id', 'status', 'role', 'tenant_group', 'tenant',
+        'q', 'parent', 'family', 'mask_length', 'vrf_id', 'status', 'role', 'assigned_to_interface', 'tenant_group',
+        'tenant',
     ]
     q = forms.CharField(
         required=False,
@@ -986,14 +1000,21 @@ class IPAddressFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterFo
         )
     )
     status = forms.MultipleChoiceField(
-        choices=IPADDRESS_STATUS_CHOICES,
+        choices=IPAddressStatusChoices,
         required=False,
         widget=StaticSelect2Multiple()
     )
     role = forms.MultipleChoiceField(
-        choices=IPADDRESS_ROLE_CHOICES,
+        choices=IPAddressRoleChoices,
         required=False,
         widget=StaticSelect2Multiple()
+    )
+    assigned_to_interface = forms.NullBooleanField(
+        required=False,
+        label='Assigned to an interface',
+        widget=StaticSelect2(
+            choices=BOOLEAN_WITH_BLANK_CHOICES
+        )
     )
 
 
@@ -1037,6 +1058,18 @@ class VLANGroupCSVForm(forms.ModelForm):
 
 
 class VLANGroupFilterForm(BootstrapMixin, forms.Form):
+    region = FilterChoiceField(
+        queryset=Region.objects.all(),
+        to_field_name='slug',
+        required=False,
+        widget=APISelectMultiple(
+            api_url="/api/dcim/regions/",
+            value_field="slug",
+            filter_for={
+                'site': 'region',
+            }
+        )
+    )
     site = FilterChoiceField(
         queryset=Site.objects.all(),
         to_field_name='slug',
@@ -1125,7 +1158,7 @@ class VLANCSVForm(forms.ModelForm):
         }
     )
     status = CSVChoiceField(
-        choices=VLAN_STATUS_CHOICES,
+        choices=VLANStatusChoices,
         help_text='Operational status'
     )
     role = forms.ModelChoiceField(
@@ -1194,7 +1227,7 @@ class VLANBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEditFor
         )
     )
     status = forms.ChoiceField(
-        choices=add_blank_choice(VLAN_STATUS_CHOICES),
+        choices=add_blank_choice(VLANStatusChoices),
         required=False,
         widget=StaticSelect2()
     )
@@ -1218,10 +1251,23 @@ class VLANBulkEditForm(BootstrapMixin, AddRemoveTagsForm, CustomFieldBulkEditFor
 
 class VLANFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm):
     model = VLAN
-    field_order = ['q', 'site', 'group_id', 'status', 'role', 'tenant_group', 'tenant']
+    field_order = ['q', 'region', 'site', 'group_id', 'status', 'role', 'tenant_group', 'tenant']
     q = forms.CharField(
         required=False,
         label='Search'
+    )
+    region = FilterChoiceField(
+        queryset=Region.objects.all(),
+        to_field_name='slug',
+        required=False,
+        widget=APISelectMultiple(
+            api_url="/api/dcim/regions/",
+            value_field="slug",
+            filter_for={
+                'site': 'region',
+                'group_id': 'region'
+            }
+        )
     )
     site = FilterChoiceField(
         queryset=Site.objects.all(),
@@ -1243,7 +1289,7 @@ class VLANFilterForm(BootstrapMixin, TenancyFilterForm, CustomFieldFilterForm):
         )
     )
     status = forms.MultipleChoiceField(
-        choices=VLAN_STATUS_CHOICES,
+        choices=VLANStatusChoices,
         required=False,
         widget=StaticSelect2Multiple()
     )
@@ -1629,6 +1675,10 @@ class PortTemplatesFilterForm(BootstrapMixin, CustomFieldFilterForm):
 #
 
 class ServiceForm(BootstrapMixin, CustomFieldForm):
+    port = forms.IntegerField(
+        min_value=1,
+        max_value=65535
+    )
     tags = TagField(
         required=False
     )
@@ -1671,7 +1721,7 @@ class ServiceFilterForm(BootstrapMixin, CustomFieldFilterForm):
         label='Search'
     )
     protocol = forms.ChoiceField(
-        choices=add_blank_choice(IP_PROTOCOL_CHOICES),
+        choices=add_blank_choice(ServiceProtocolChoices),
         required=False,
         widget=StaticSelect2Multiple()
     )
@@ -1686,7 +1736,7 @@ class ServiceBulkEditForm(BootstrapMixin, CustomFieldBulkEditForm):
         widget=forms.MultipleHiddenInput()
     )
     protocol = forms.ChoiceField(
-        choices=add_blank_choice(IP_PROTOCOL_CHOICES),
+        choices=add_blank_choice(ServiceProtocolChoices),
         required=False,
         widget=StaticSelect2()
     )

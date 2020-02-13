@@ -7,7 +7,7 @@ $(document).ready(function() {
 
     // "Toggle" checkbox for object lists (PK column)
     $('input:checkbox.toggle').click(function() {
-        $(this).closest('table').find('input:checkbox[name=pk]').prop('checked', $(this).prop('checked'));
+        $(this).closest('table').find('input:checkbox[name=pk]:visible').prop('checked', $(this).prop('checked'));
 
         // Show the "select all" box if present
         if ($(this).is(':checked')) {
@@ -103,14 +103,16 @@ $(document).ready(function() {
         placeholder: "---------",
         theme: "bootstrap",
         templateResult: colorPickerClassCopy,
-        templateSelection: colorPickerClassCopy
+        templateSelection: colorPickerClassCopy,
+        width: "off"
     });
 
     // Static choice selection
     $('.netbox-select2-static').select2({
         allowClear: true,
         placeholder: "---------",
-        theme: "bootstrap"
+        theme: "bootstrap",
+        width: "off"
     });
 
     // API backed selection
@@ -120,6 +122,7 @@ $(document).ready(function() {
         allowClear: true,
         placeholder: "---------",
         theme: "bootstrap",
+        width: "off",
         ajax: {
             delay: 500,
 
@@ -184,7 +187,15 @@ $(document).ready(function() {
                 $.each(element.attributes, function(index, attr){
                     if (attr.name.includes("data-additional-query-param-")){
                         var param_name = attr.name.split("data-additional-query-param-")[1];
-                        parameters[param_name] = attr.value;
+                        if (param_name in parameters) {
+                            if (Array.isArray(parameters[param_name])) {
+                                parameters[param_name].push(attr.value)
+                            } else {
+                                parameters[param_name] = [parameters[param_name], attr.value]
+                            }
+                        } else {
+                            parameters[param_name] = attr.value;
+                        }
                     }
                 });
 
@@ -251,6 +262,24 @@ $(document).ready(function() {
         }
     });
 
+    // Flatpickr selectors
+    $('.date-picker').flatpickr({
+        allowInput: true
+    });
+    $('.datetime-picker').flatpickr({
+        allowInput: true,
+        enableSeconds: true,
+        enableTime: true,
+        time_24hr: true
+    });
+    $('.time-picker').flatpickr({
+        allowInput: true,
+        enableSeconds: true,
+        enableTime: true,
+        noCalendar: true,
+        time_24hr: true
+    });
+
     // API backed tags
     var tags = $('#id_tags');
     if (tags.length > 0 && tags.val().length > 0){
@@ -273,7 +302,8 @@ $(document).ready(function() {
         multiple: true,
         allowClear: true,
         placeholder: "Tags",
-
+        theme: "bootstrap",
+        width: "off",
         ajax: {
             delay: 250,
             url: netbox_api_path + "extras/tags/",
@@ -334,17 +364,17 @@ $(document).ready(function() {
                 $('select#id_untagged_vlan').parent().parent().hide();
                 $('select#id_tagged_vlans').parent().parent().hide();
             }
-            else if ($(this).val() == 100) {
+            else if ($(this).val() == 'access') {
                 $('select#id_tagged_vlans').val([]);
                 $('select#id_tagged_vlans').trigger('change');
                 $('select#id_untagged_vlan').parent().parent().show();
                 $('select#id_tagged_vlans').parent().parent().hide();
             }
-            else if ($(this).val() == 200) {
+            else if ($(this).val() == 'tagged') {
                 $('select#id_untagged_vlan').parent().parent().show();
                 $('select#id_tagged_vlans').parent().parent().show();
             }
-            else if ($(this).val() == 300) {
+            else if ($(this).val() == 'tagged-all') {
                 $('select#id_tagged_vlans').val([]);
                 $('select#id_tagged_vlans').trigger('change');
                 $('select#id_untagged_vlan').parent().parent().show();
@@ -353,4 +383,58 @@ $(document).ready(function() {
         });
         $('select#id_mode').trigger('change');
     }
+
+    // Scroll up an offset equal to the first nav element if a hash is present
+    // Cannot use '#navbar' because it is not always visible, like in small windows
+    function headerOffsetScroll() {
+        if (window.location.hash) {
+            // Short wait needed to allow the page to scroll to the element
+            setTimeout(function() {
+                window.scrollBy(0, -$('nav').height())
+            }, 10);
+        }
+    }
+
+    // Account for the header height when hash-scrolling
+    window.addEventListener('load', headerOffsetScroll);
+    window.addEventListener('hashchange', headerOffsetScroll);
+
+    // Offset between the preview window and the window edges
+    const IMAGE_PREVIEW_OFFSET_X = 20;
+    const IMAGE_PREVIEW_OFFSET_Y = 10;
+
+    // Preview an image attachment when the link is hovered over
+    $('a.image-preview').on('mouseover', function(e) {
+        // Twice the offset to account for all sides of the picture
+        var maxWidth = window.innerWidth - (e.clientX + (IMAGE_PREVIEW_OFFSET_X * 2));
+        var maxHeight = window.innerHeight - (e.clientY + (IMAGE_PREVIEW_OFFSET_Y * 2));
+        var img = $('<img>').attr('id', 'image-preview-window').css({
+            display: 'none',
+            position: 'absolute',
+            maxWidth: maxWidth + 'px',
+            maxHeight: maxHeight + 'px',
+            left: e.pageX + IMAGE_PREVIEW_OFFSET_X + 'px',
+            top: e.pageY + IMAGE_PREVIEW_OFFSET_Y + 'px',
+            boxShadow: '0 0px 12px 3px rgba(0, 0, 0, 0.4)',
+        });
+
+        // Remove any existing preview windows and add the current one
+        $('#image-preview-window').remove();
+        $('body').append(img);
+
+        // Once loaded, show the preview if the image is indeed an image
+        img.on('load', function(e) {
+            if (e.target.complete && e.target.naturalWidth) {
+                $('#image-preview-window').fadeIn('fast');
+            }
+        });
+
+        // Begin loading
+        img.attr('src', e.target.href);
+    });
+
+    // Fade the image out; it will be deleted when another one is previewed
+    $('a.image-preview').on('mouseout', function() {
+        $('#image-preview-window').fadeOut('fast');
+    });
 });

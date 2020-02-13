@@ -1,5 +1,4 @@
-from django.db.models import Lookup, Transform, IntegerField
-from django.db.models import lookups
+from django.db.models import IntegerField, Lookup, Transform, lookups
 
 
 class NetFieldDecoratorMixin(object):
@@ -99,6 +98,46 @@ class NetHost(Lookup):
             rhs_params[0] = rhs_params[0].split('/')[0]
         params = lhs_params + rhs_params
         return 'HOST(%s) = %s' % (lhs, rhs), params
+
+
+class NetIn(Lookup):
+    lookup_name = 'net_in'
+
+    def get_prep_lookup(self):
+        # Don't cast the query value to a netaddr object, since it may or may not include a mask.
+        return self.rhs
+
+    def as_sql(self, qn, connection):
+        lhs, lhs_params = self.process_lhs(qn, connection)
+        rhs, rhs_params = self.process_rhs(qn, connection)
+        with_mask, without_mask = [], []
+        for address in rhs_params[0]:
+            if '/' in address:
+                with_mask.append(address)
+            else:
+                without_mask.append(address)
+
+        address_in_clause = self.create_in_clause('{} IN ('.format(lhs), len(with_mask))
+        host_in_clause = self.create_in_clause('HOST({}) IN ('.format(lhs), len(without_mask))
+
+        if with_mask and not without_mask:
+            return address_in_clause, with_mask
+        elif not with_mask and without_mask:
+            return host_in_clause, without_mask
+
+        in_clause = '({}) OR ({})'.format(address_in_clause, host_in_clause)
+        with_mask.extend(without_mask)
+        return in_clause, with_mask
+
+    @staticmethod
+    def create_in_clause(clause_part, max_size):
+        clause_elements = [clause_part]
+        for offset in range(0, max_size):
+            if offset > 0:
+                clause_elements.append(', ')
+            clause_elements.append('%s')
+        clause_elements.append(')')
+        return ''.join(clause_elements)
 
 
 class NetHostContained(Lookup):

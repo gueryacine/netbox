@@ -8,16 +8,12 @@ from taggit.forms import TagField
 
 from dcim.models import DeviceRole, Platform, Region, Site
 from tenancy.models import Tenant, TenantGroup
-from utilities.constants import COLOR_CHOICES
 from utilities.forms import (
     add_blank_choice, APISelectMultiple, BootstrapMixin, BulkEditForm, BulkEditNullBooleanSelect, ColorSelect,
-    CommentField, ContentTypeSelect, FilterChoiceField, LaxURLField, JSONField, SlugField, StaticSelect2,
-    BOOLEAN_WITH_BLANK_CHOICES,
+    CommentField, ContentTypeSelect, DatePicker, DateTimePicker, FilterChoiceField, LaxURLField, JSONField,
+    SlugField, StaticSelect2, BOOLEAN_WITH_BLANK_CHOICES,
 )
-from .constants import (
-    CF_FILTER_DISABLED, CF_TYPE_BOOLEAN, CF_TYPE_DATE, CF_TYPE_INTEGER, CF_TYPE_SELECT, CF_TYPE_URL,
-    OBJECTCHANGE_ACTION_CHOICES,
-)
+from .choices import *
 from .models import ConfigContext, CustomField, CustomFieldValue, ImageAttachment, ObjectChange, Tag
 
 
@@ -32,18 +28,18 @@ def get_custom_fields_for_model(content_type, filterable_only=False, bulk_edit=F
     field_dict = OrderedDict()
     custom_fields = CustomField.objects.filter(obj_type=content_type)
     if filterable_only:
-        custom_fields = custom_fields.exclude(filter_logic=CF_FILTER_DISABLED)
+        custom_fields = custom_fields.exclude(filter_logic=CustomFieldFilterLogicChoices.FILTER_DISABLED)
 
     for cf in custom_fields:
         field_name = 'cf_{}'.format(str(cf.name))
         initial = cf.default if not bulk_edit else None
 
         # Integer
-        if cf.type == CF_TYPE_INTEGER:
+        if cf.type == CustomFieldTypeChoices.TYPE_INTEGER:
             field = forms.IntegerField(required=cf.required, initial=initial)
 
         # Boolean
-        elif cf.type == CF_TYPE_BOOLEAN:
+        elif cf.type == CustomFieldTypeChoices.TYPE_BOOLEAN:
             choices = (
                 (None, '---------'),
                 (1, 'True'),
@@ -56,15 +52,15 @@ def get_custom_fields_for_model(content_type, filterable_only=False, bulk_edit=F
             else:
                 initial = None
             field = forms.NullBooleanField(
-                required=cf.required, initial=initial, widget=forms.Select(choices=choices)
+                required=cf.required, initial=initial, widget=StaticSelect2(choices=choices)
             )
 
         # Date
-        elif cf.type == CF_TYPE_DATE:
-            field = forms.DateField(required=cf.required, initial=initial, help_text="Date format: YYYY-MM-DD")
+        elif cf.type == CustomFieldTypeChoices.TYPE_DATE:
+            field = forms.DateField(required=cf.required, initial=initial, widget=DatePicker())
 
         # Select
-        elif cf.type == CF_TYPE_SELECT:
+        elif cf.type == CustomFieldTypeChoices.TYPE_SELECT:
             choices = [(cfc.pk, cfc) for cfc in cf.choices.all()]
             if not cf.required or bulk_edit or filterable_only:
                 choices = [(None, '---------')] + choices
@@ -75,10 +71,12 @@ def get_custom_fields_for_model(content_type, filterable_only=False, bulk_edit=F
                     default_choice = cf.choices.get(value=initial).pk
                 except ObjectDoesNotExist:
                     pass
-            field = forms.TypedChoiceField(choices=choices, coerce=int, required=cf.required, initial=default_choice)
+            field = forms.TypedChoiceField(
+                choices=choices, coerce=int, required=cf.required, initial=default_choice, widget=StaticSelect2()
+            )
 
         # URL
-        elif cf.type == CF_TYPE_URL:
+        elif cf.type == CustomFieldTypeChoices.TYPE_URL:
             field = LaxURLField(required=cf.required, initial=initial)
 
         # Text
@@ -241,6 +239,14 @@ class TagBulkEditForm(BootstrapMixin, BulkEditForm):
 #
 
 class ConfigContextForm(BootstrapMixin, forms.ModelForm):
+    tags = forms.ModelMultipleChoiceField(
+        queryset=Tag.objects.all(),
+        to_field_name='slug',
+        required=False,
+        widget=APISelectMultiple(
+            api_url="/api/extras/tags/"
+        )
+    )
     data = JSONField(
         label=''
     )
@@ -249,7 +255,7 @@ class ConfigContextForm(BootstrapMixin, forms.ModelForm):
         model = ConfigContext
         fields = [
             'name', 'weight', 'description', 'is_active', 'regions', 'sites', 'roles', 'platforms', 'tenant_groups',
-            'tenants', 'data',
+            'tenants', 'tags', 'data',
         ]
         widgets = {
             'regions': APISelectMultiple(
@@ -269,7 +275,7 @@ class ConfigContextForm(BootstrapMixin, forms.ModelForm):
             ),
             'tenants': APISelectMultiple(
                 api_url="/api/tenancy/tenants/"
-            )
+            ),
         }
 
 
@@ -350,6 +356,14 @@ class ConfigContextFilterForm(BootstrapMixin, forms.Form):
             value_field="slug",
         )
     )
+    tag = FilterChoiceField(
+        queryset=Tag.objects.all(),
+        to_field_name='slug',
+        widget=APISelectMultiple(
+            api_url="/api/extras/tags/",
+            value_field="slug",
+        )
+    )
 
 
 #
@@ -392,19 +406,15 @@ class ObjectChangeFilterForm(BootstrapMixin, forms.Form):
     time_after = forms.DateTimeField(
         label='After',
         required=False,
-        widget=forms.TextInput(
-            attrs={'placeholder': 'YYYY-MM-DD hh:mm:ss'}
-        )
+        widget=DateTimePicker()
     )
     time_before = forms.DateTimeField(
         label='Before',
         required=False,
-        widget=forms.TextInput(
-            attrs={'placeholder': 'YYYY-MM-DD hh:mm:ss'}
-        )
+        widget=DateTimePicker()
     )
     action = forms.ChoiceField(
-        choices=add_blank_choice(OBJECTCHANGE_ACTION_CHOICES),
+        choices=add_blank_choice(ObjectChangeActionChoices),
         required=False
     )
     user = forms.ModelChoiceField(
@@ -431,13 +441,17 @@ class ScriptForm(BootstrapMixin, forms.Form):
         help_text="Commit changes to the database (uncheck for a dry-run)"
     )
 
-    def __init__(self, vars, *args, **kwargs):
+    def __init__(self, vars, *args, commit_default=True, **kwargs):
 
         super().__init__(*args, **kwargs)
 
         # Dynamically populate fields for variables
         for name, var in vars.items():
             self.fields[name] = var.as_field()
+
+        # Toggle default commit behavior based on Meta option
+        if not commit_default:
+            self.fields['_commit'].initial = False
 
         # Move _commit to the end of the form
         self.fields.move_to_end('_commit', True)

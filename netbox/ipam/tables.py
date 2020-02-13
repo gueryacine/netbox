@@ -89,7 +89,11 @@ IPADDRESS_LINK = """
 """
 
 IPADDRESS_ASSIGN_LINK = """
-<a href="{% url 'ipam:ipaddress_edit' pk=record.pk %}?interface={{ request.GET.interface }}&return_url={{ request.GET.return_url }}">{{ record }}</a>
+{% if request.GET %}
+    <a href="{% url 'ipam:ipaddress_edit' pk=record.pk %}?interface={{ request.GET.interface }}&return_url={{ request.GET.return_url }}">{{ record }}</a>
+{% else %}
+    <a href="{% url 'ipam:ipaddress_edit' pk=record.pk %}?interface={{ record.interface.pk }}&return_url={{ request.path }}">{{ record }}</a>
+{% endif %}
 """
 
 IPADDRESS_PARENT = """
@@ -354,11 +358,15 @@ class RoleTable(BaseTable):
         orderable=False,
         verbose_name='Port-templates',
     )
-    actions = tables.TemplateColumn(template_code=ROLE_ACTIONS, attrs={'td': {'class': 'text-right noprint'}}, verbose_name='')
+    actions = tables.TemplateColumn(
+        template_code=ROLE_ACTIONS,
+        attrs={'td': {'class': 'text-right noprint'}},
+        verbose_name=''
+    )
 
     class Meta(BaseTable.Meta):
         model = Role
-        fields = ('pk', 'name', 'prefix_count', 'vlan_count', 'port_template_count', 'slug', 'actions')
+        fields = ('pk', 'name', 'prefix_count', 'vlan_count', 'port_template_count',  'description', 'slug', 'weight', 'actions')
 
 
 #
@@ -435,7 +443,7 @@ class IPAddressAssignTable(BaseTable):
 
     class Meta(BaseTable.Meta):
         model = IPAddress
-        fields = ('address', 'vrf', 'status', 'role', 'tenant', 'parent', 'interface', 'description')
+        fields = ('address', 'dns_name', 'vrf', 'status', 'role', 'tenant', 'parent', 'interface', 'description')
         orderable = False
 
 

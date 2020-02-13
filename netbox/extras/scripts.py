@@ -1,17 +1,17 @@
-from collections import OrderedDict
 import inspect
 import json
 import os
 import pkgutil
 import time
 import traceback
-import yaml
+from collections import OrderedDict
 
+import yaml
 from django import forms
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import transaction
-from mptt.forms import TreeNodeChoiceField
+from mptt.forms import TreeNodeChoiceField, TreeNodeMultipleChoiceField
 from mptt.models import MPTTModel
 
 from ipam.formfields import IPFormField
@@ -21,13 +21,14 @@ from .constants import LOG_DEFAULT, LOG_FAILURE, LOG_INFO, LOG_SUCCESS, LOG_WARN
 from .forms import ScriptForm
 from .signals import purge_changelog
 
-
 __all__ = [
     'BaseScript',
     'BooleanVar',
+    'ChoiceVar',
     'FileVar',
     'IntegerVar',
     'IPNetworkVar',
+    'MultiObjectVar',
     'ObjectVar',
     'Script',
     'StringVar',
@@ -133,6 +134,27 @@ class BooleanVar(ScriptVariable):
         self.field_attrs['required'] = False
 
 
+class ChoiceVar(ScriptVariable):
+    """
+    Select one of several predefined static choices, passed as a list of two-tuples. Example:
+
+        color = ChoiceVar(
+            choices=(
+                ('#ff0000', 'Red'),
+                ('#00ff00', 'Green'),
+                ('#0000ff', 'Blue')
+            )
+        )
+    """
+    form_field = forms.ChoiceField
+
+    def __init__(self, choices, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Set field choices
+        self.field_attrs['choices'] = choices
+
+
 class ObjectVar(ScriptVariable):
     """
     NetBox object representation. The provided QuerySet will determine the choices available.
@@ -148,6 +170,23 @@ class ObjectVar(ScriptVariable):
         # Update form field for MPTT (nested) objects
         if issubclass(queryset.model, MPTTModel):
             self.form_field = TreeNodeChoiceField
+
+
+class MultiObjectVar(ScriptVariable):
+    """
+    Like ObjectVar, but can represent one or more objects.
+    """
+    form_field = forms.ModelMultipleChoiceField
+
+    def __init__(self, queryset, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Queryset for field choices
+        self.field_attrs['queryset'] = queryset
+
+        # Update form field for MPTT (nested) objects
+        if issubclass(queryset.model, MPTTModel):
+            self.form_field = TreeNodeMultipleChoiceField
 
 
 class FileVar(ScriptVariable):
@@ -196,6 +235,9 @@ class BaseScript:
         # Initiate the log
         self.log = []
 
+        # Declare the placeholder for the current request
+        self.request = None
+
         # Grab some info about the script
         self.filename = inspect.getfile(self.__class__)
         self.source = inspect.getsource(self.__class__)
@@ -203,16 +245,21 @@ class BaseScript:
     def __str__(self):
         return getattr(self.Meta, 'name', self.__class__.__name__)
 
-    def _get_vars(self):
+    @classmethod
+    def module(cls):
+        return cls.__module__
+
+    @classmethod
+    def _get_vars(cls):
         vars = OrderedDict()
 
         # Infer order from Meta.field_order (Python 3.5 and lower)
-        field_order = getattr(self.Meta, 'field_order', [])
+        field_order = getattr(cls.Meta, 'field_order', [])
         for name in field_order:
-            vars[name] = getattr(self, name)
+            vars[name] = getattr(cls, name)
 
         # Default to order of declaration on class
-        for name, attr in self.__class__.__dict__.items():
+        for name, attr in cls.__dict__.items():
             if name not in vars and issubclass(attr.__class__, ScriptVariable):
                 vars[name] = attr
 
@@ -221,12 +268,12 @@ class BaseScript:
     def run(self, data):
         raise NotImplementedError("The script must define a run() method.")
 
-    def as_form(self, data=None, files=None):
+    def as_form(self, data=None, files=None, initial=None):
         """
         Return a Django form suitable for populating the context data required to run this Script.
         """
         vars = self._get_vars()
-        form = ScriptForm(vars, data, files)
+        form = ScriptForm(vars, data, files, initial=initial, commit_default=getattr(self.Meta, 'commit_default', True))
 
         return form
 
@@ -298,7 +345,7 @@ def is_variable(obj):
     return isinstance(obj, ScriptVariable)
 
 
-def run_script(script, data, files, commit=True):
+def run_script(script, data, request, commit=True):
     """
     A wrapper for calling Script.run(). This performs error handling and provides a hook for committing changes. It
     exists outside of the Script class to ensure it cannot be overridden by a script author.
@@ -308,8 +355,12 @@ def run_script(script, data, files, commit=True):
     end_time = None
 
     # Add files to form data
+    files = request.FILES
     for field_name, fileobj in files.items():
         data[field_name] = fileobj
+
+    # Add the current request as a property of the script
+    script.request = request
 
     try:
         with transaction.atomic():
@@ -343,14 +394,18 @@ def run_script(script, data, files, commit=True):
     return output, execution_time
 
 
-def get_scripts():
+def get_scripts(use_names=False):
+    """
+    Return a dict of dicts mapping all scripts to their modules. Set use_names to True to use each module's human-
+    defined name in place of the actual module name.
+    """
     scripts = OrderedDict()
 
     # Iterate through all modules within the reports path. These are the user-created files in which reports are
     # defined.
     for importer, module_name, _ in pkgutil.iter_modules([settings.SCRIPTS_ROOT]):
         module = importer.find_module(module_name).load_module(module_name)
-        if hasattr(module, 'name'):
+        if use_names and hasattr(module, 'name'):
             module_name = module.name
         module_scripts = OrderedDict()
         for name, cls in inspect.getmembers(module, is_script):
@@ -358,3 +413,13 @@ def get_scripts():
         scripts[module_name] = module_scripts
 
     return scripts
+
+
+def get_script(module_name, script_name):
+    """
+    Retrieve a script class by module and name. Returns None if the script does not exist.
+    """
+    scripts = get_scripts()
+    module = scripts.get(module_name)
+    if module:
+        return module.get(script_name)

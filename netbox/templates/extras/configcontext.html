@@ -112,7 +112,7 @@
                             {% if configcontext.roles.all %}
                                 <ul>
                                     {% for role in configcontext.roles.all %}
-                                        <li><a href="{{ role.get_absolute_url }}">{{ role }}</a></li>
+                                        <li><a href="{% url 'dcim:device_list' %}?role={{ role.slug }}">{{ role }}</a></li>
                                     {% endfor %}
                                 </ul>
                             {% else %}
@@ -155,6 +155,20 @@
                                 <ul>
                                     {% for tenant in configcontext.tenants.all %}
                                         <li><a href="{{ tenant.get_absolute_url }}">{{ tenant }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <span class="text-muted">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Tags</td>
+                        <td>
+                            {% if configcontext.tags.all %}
+                                <ul>
+                                    {% for tag in configcontext.tags.all %}
+                                        <li><a href="{{ tag.get_absolute_url }}">{{ tag }}</a></li>
                                     {% endfor %}
                                 </ul>
                             {% else %}

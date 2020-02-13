@@ -17,24 +17,36 @@ DATABASE = {
     'PASSWORD': '',           # PostgreSQL password
     'HOST': 'localhost',      # Database server
     'PORT': '',               # Database port (leave blank for default)
+    'CONN_MAX_AGE': 300,      # Max database connection age
+}
+
+# Redis database settings. The Redis database is used for caching and background processing such as webhooks
+# Seperate sections for webhooks and caching allow for connecting to seperate Redis instances/datbases if desired.
+# Full connection details are required in both sections, even if they are the same.
+REDIS = {
+    'webhooks': {
+        'HOST': 'localhost',
+        'PORT': 6379,
+        'PASSWORD': '',
+        'DATABASE': 0,
+        'DEFAULT_TIMEOUT': 300,
+        'SSL': False,
+    },
+    'caching': {
+        'HOST': 'localhost',
+        'PORT': 6379,
+        'PASSWORD': '',
+        'DATABASE': 1,
+        'DEFAULT_TIMEOUT': 300,
+        'SSL': False,
+    }
 }
 
 # This key is used for secure generation of random numbers and strings. It must never be exposed outside of this file.
 # For optimal security, SECRET_KEY should be at least 50 characters in length and contain a mix of letters, numbers, and
 # symbols. NetBox will not run without this defined. For more information, see
-# https://docs.djangoproject.com/en/dev/ref/settings/#std:setting-SECRET_KEY
+# https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-SECRET_KEY
 SECRET_KEY = ''
-
-# Redis database settings. The Redis database is used for caching and background processing such as webhooks
-REDIS = {
-    'HOST': 'localhost',
-    'PORT': 6379,
-    'PASSWORD': '',
-    'DATABASE': 0,
-    'CACHE_DATABASE': 1,
-    'DEFAULT_TIMEOUT': 300,
-    'SSL': False,
-}
 
 
 #########################
@@ -106,7 +118,7 @@ EXEMPT_VIEW_PERMISSIONS = [
 ]
 
 # Enable custom logging. Please see the Django documentation for detailed guidance on configuring custom logs:
-#   https://docs.djangoproject.com/en/1.11/topics/logging/
+#   https://docs.djangoproject.com/en/stable/topics/logging/
 LOGGING = {}
 
 # Setting this to True will permit only authenticated users to access any part of NetBox. By default, anonymous users
@@ -128,6 +140,16 @@ MAX_PAGE_SIZE = 1000
 # The file path where uploaded media such as image attachments are stored. A trailing slash is not needed. Note that
 # the default value of this setting is derived from the installed location.
 # MEDIA_ROOT = '/opt/netbox/netbox/media'
+
+# By default uploaded media is stored on the local filesystem. Using Django-storages is also supported. Provide the
+# class path of the storage driver in STORAGE_BACKEND and any configuration options in STORAGE_CONFIG. For example:
+# STORAGE_BACKEND = 'storages.backends.s3boto3.S3Boto3Storage'
+# STORAGE_CONFIG = {
+#     'AWS_ACCESS_KEY_ID': 'Key ID',
+#     'AWS_SECRET_ACCESS_KEY': 'Secret',
+#     'AWS_STORAGE_BUCKET_NAME': 'netbox',
+#     'AWS_S3_REGION_NAME': 'eu-west-1',
+# }
 
 # Expose Prometheus monitoring metrics at the HTTP endpoint '/metrics'
 METRICS_ENABLED = False
@@ -154,6 +176,10 @@ PREFER_IPV4 = False
 # this setting is derived from the installed location.
 # REPORTS_ROOT = '/opt/netbox/netbox/reports'
 
+# The file path where custom scripts will be stored. A trailing slash is not needed. Note that the default value of
+# this setting is derived from the installed location.
+# SCRIPTS_ROOT = '/opt/netbox/netbox/scripts'
+
 # By default, NetBox will store session data in the database. Alternatively, a file path can be specified here to use
 # local file storage instead. (This can be useful for enabling authentication on a standby instance with read-only
 # database access.) Note that the user as which NetBox runs must have read and write permissions to this path.
@@ -162,12 +188,8 @@ SESSION_FILE_PATH = None
 # Time zone (default: UTC)
 TIME_ZONE = 'UTC'
 
-# The webhooks backend is disabled by default. Set this to True to enable it. Note that this requires a Redis
-# database be configured and accessible by NetBox.
-WEBHOOKS_ENABLED = False
-
 # Date/time formatting. See the following link for supported formats:
-# https://docs.djangoproject.com/en/dev/ref/templates/builtins/#date
+# https://docs.djangoproject.com/en/stable/ref/templates/builtins/#date
 DATE_FORMAT = 'N j, Y'
 SHORT_DATE_FORMAT = 'Y-m-d'
 TIME_FORMAT = 'g:i a'

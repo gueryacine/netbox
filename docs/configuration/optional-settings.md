@@ -139,7 +139,7 @@ Enforcement of unique IP space can be toggled on a per-VRF basis. To enforce uni
 
 By default, all messages of INFO severity or higher will be logged to the console. Additionally, if `DEBUG` is False and email access has been configured, ERROR and CRITICAL messages will be emailed to the users defined in `ADMINS`.
 
-The Django framework on which NetBox runs allows for the customization of logging, e.g. to write logs to file. Please consult the [Django logging documentation](https://docs.djangoproject.com/en/1.11/topics/logging/) for more information on configuring this setting. Below is an example which will write all INFO and higher messages to a file:
+The Django framework on which NetBox runs allows for the customization of logging, e.g. to write logs to file. Please consult the [Django logging documentation](https://docs.djangoproject.com/en/stable/topics/logging/) for more information on configuring this setting. Below is an example which will write all INFO and higher messages to a file:
 
 ```
 LOGGING = {
@@ -207,7 +207,7 @@ The file path to the location where media files (such as image attachments) are 
 
 Default: False
 
-Toggle exposing Prometheus metrics at `/metrics`. See the [Prometheus Metrics](../additional-features/prometheus-metrics/) documentation for more details.
+Toggle exposing Prometheus metrics at `/metrics`. See the [Prometheus Metrics](../../additional-features/prometheus-metrics/) documentation for more details.
 
 ---
 
@@ -293,6 +293,26 @@ Session data is used to track authenticated users when they access NetBox. By de
 
 ---
 
+## STORAGE_BACKEND
+
+Default: None (local storage)
+
+The backend storage engine for handling uploaded files (e.g. image attachments). NetBox supports integration with the [`django-storages`](https://django-storages.readthedocs.io/en/stable/) package, which provides backends for several popular file storage services. If not configured, local filesystem storage will be used.
+
+The configuration parameters for the specified storage backend are defined under the `STORAGE_CONFIG` setting.
+
+---
+
+## STORAGE_CONFIG
+
+Default: Empty
+
+A dictionary of configuration parameters for the storage backend configured as `STORAGE_BACKEND`. The specific parameters to be used here are specific to each backend; see the [`django-storages` documentation](https://django-storages.readthedocs.io/en/stable/) for more detail.
+
+If `STORAGE_BACKEND` is not defined, this setting will be ignored.
+
+---
+
 ## TIME_ZONE
 
 Default: UTC
@@ -301,17 +321,9 @@ The time zone NetBox will use when dealing with dates and times. It is recommend
 
 ---
 
-## WEBHOOKS_ENABLED
-
-Default: False
-
-Enable this option to run the webhook backend. See the docs section on the webhook backend [here](../additional-features/webhooks/) for more information on setup and use.
-
----
-
 ## Date and Time Formatting
 
-You may define custom formatting for date and times. For detailed instructions on writing format strings, please see [the Django documentation](https://docs.djangoproject.com/en/dev/ref/templates/builtins/#date).
+You may define custom formatting for date and times. For detailed instructions on writing format strings, please see [the Django documentation](https://docs.djangoproject.com/en/stable/ref/templates/builtins/#date).
 
 Defaults:
 

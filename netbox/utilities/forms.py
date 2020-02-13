@@ -2,14 +2,14 @@ import csv
 import json
 import re
 from io import StringIO
+import yaml
 
 from django import forms
 from django.conf import settings
 from django.contrib.postgres.forms.jsonb import JSONField as _JSONField, InvalidJSONInput
-from django.db.models import Count
-from django.urls import reverse_lazy
 from mptt.forms import TreeNodeMultipleChoiceField
 
+from .choices import unpack_grouped_choices
 from .constants import *
 from .validators import EnhancedURLValidator
 
@@ -62,8 +62,16 @@ def parse_alphanumeric_range(string):
             for n in list(range(int(begin), int(end) + 1)):
                 values.append(n)
         else:
-            for n in list(range(ord(begin), ord(end) + 1)):
-                values.append(chr(n))
+            # Value-based
+            if begin == end:
+                values.append(begin)
+            # Range-based
+            else:
+                # Not a valid range (more than a single character)
+                if not len(begin) == len(end) == 1:
+                    raise forms.ValidationError('Range "{}" is invalid.'.format(dash_range))
+                for n in list(range(ord(begin), ord(end) + 1)):
+                    values.append(chr(n))
     return values
 
 
@@ -110,43 +118,6 @@ def add_blank_choice(choices):
     Add a blank choice to the beginning of a choices list.
     """
     return ((None, '---------'),) + tuple(choices)
-
-
-def unpack_grouped_choices(choices):
-    """
-    Unpack a grouped choices hierarchy into a flat list of two-tuples. For example:
-
-    choices = (
-        ('Foo', (
-            (1, 'A'),
-            (2, 'B')
-        )),
-        ('Bar', (
-            (3, 'C'),
-            (4, 'D')
-        ))
-    )
-
-    becomes:
-
-    choices = (
-        (1, 'A'),
-        (2, 'B'),
-        (3, 'C'),
-        (4, 'D')
-    )
-    """
-    unpacked_choices = []
-    for key, value in choices:
-        if key == 1300:
-            breakme = True
-        if isinstance(value, (list, tuple)):
-            # Entered an optgroup
-            for optgroup_key, optgroup_value in value:
-                unpacked_choices.append((optgroup_key, optgroup_value))
-        else:
-            unpacked_choices.append((key, value))
-    return unpacked_choices
 
 
 #
@@ -287,6 +258,8 @@ class APISelect(SelectWithDisabled):
         name of the query param and the value if the query param's value.
     :param null_option: If true, include the static null option in the selection list.
     """
+    # Only preload the selected option(s); new options are dynamically displayed and added via the API
+    template_name = 'widgets/select_api.html'
 
     def __init__(
         self,
@@ -364,6 +337,36 @@ class APISelectMultiple(APISelect, forms.SelectMultiple):
         self.attrs['data-multiple'] = 1
 
 
+class DatePicker(forms.TextInput):
+    """
+    Date picker using Flatpickr.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attrs['class'] = 'date-picker'
+        self.attrs['placeholder'] = 'YYYY-MM-DD'
+
+
+class DateTimePicker(forms.TextInput):
+    """
+    DateTime picker using Flatpickr.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attrs['class'] = 'datetime-picker'
+        self.attrs['placeholder'] = 'YYYY-MM-DD hh:mm:ss'
+
+
+class TimePicker(forms.TextInput):
+    """
+    Time picker using Flatpickr.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attrs['class'] = 'time-picker'
+        self.attrs['placeholder'] = 'hh:mm:ss'
+
+
 #
 # Form fields
 #
@@ -433,7 +436,7 @@ class CSVChoiceField(forms.ChoiceField):
     def clean(self, value):
         value = super().clean(value)
         if not value:
-            return None
+            return ''
         if value not in self.choice_values:
             raise forms.ValidationError("Invalid choice: {}".format(value))
         return self.choice_values[value]
@@ -451,6 +454,7 @@ class ExpandableNameField(forms.CharField):
                              'Mixed cases and types within a single range are not supported.<br />' \
                              'Examples:<ul><li><code>ge-0/0/[0-23,25,30]</code></li>' \
                              '<li><code>e[0-3][a-d,f]</code></li>' \
+                             '<li><code>[xe,ge]-0/0/0</code></li>' \
                              '<li><code>e[0-3,a-d,f]</code></li></ul>'
 
     def to_python(self, value):
@@ -673,16 +677,22 @@ class ChainedFieldsMixin(forms.BaseForm):
                     else:
                         break
 
+                # Limit field queryset by chained field values
                 if filters_dict:
                     field.queryset = field.queryset.filter(**filters_dict)
+                # Editing an existing instance; limit field to its current value
                 elif not self.is_bound and getattr(self, 'instance', None) and hasattr(self.instance, field_name):
                     obj = getattr(self.instance, field_name)
                     if obj is not None:
                         field.queryset = field.queryset.filter(pk=obj.pk)
                     else:
                         field.queryset = field.queryset.none()
-                elif not self.is_bound:
+                # Creating a new instance with no bound data; nullify queryset
+                elif not self.data.get(field_name):
                     field.queryset = field.queryset.none()
+                # Creating a new instance with bound data; limit queryset to the specified value
+                else:
+                    field.queryset = field.queryset.filter(pk=self.data.get(field_name))
 
 
 class ReturnURLForm(forms.Form):
@@ -724,3 +734,41 @@ class BulkEditForm(forms.Form):
         # Copy any nullable fields defined in Meta
         if hasattr(self.Meta, 'nullable_fields'):
             self.nullable_fields = self.Meta.nullable_fields
+
+
+class ImportForm(BootstrapMixin, forms.Form):
+    """
+    Generic form for creating an object from JSON/YAML data
+    """
+    data = forms.CharField(
+        widget=forms.Textarea,
+        help_text="Enter object data in JSON or YAML format."
+    )
+    format = forms.ChoiceField(
+        choices=(
+            ('json', 'JSON'),
+            ('yaml', 'YAML')
+        ),
+        initial='yaml'
+    )
+
+    def clean(self):
+
+        data = self.cleaned_data['data']
+        format = self.cleaned_data['format']
+
+        # Process JSON/YAML data
+        if format == 'json':
+            try:
+                self.cleaned_data['data'] = json.loads(data)
+            except json.decoder.JSONDecodeError as err:
+                raise forms.ValidationError({
+                    'data': "Invalid JSON data: {}".format(err)
+                })
+        else:
+            try:
+                self.cleaned_data['data'] = yaml.load(data, Loader=yaml.SafeLoader)
+            except yaml.scanner.ScannerError as err:
+                raise forms.ValidationError({
+                    'data': "Invalid YAML data: {}".format(err)
+                })

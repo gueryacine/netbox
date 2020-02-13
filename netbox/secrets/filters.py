@@ -2,19 +2,25 @@ import django_filters
 from django.db.models import Q
 
 from dcim.models import Device
-from extras.filters import CustomFieldFilterSet
+from extras.filters import CustomFieldFilterSet, CreatedUpdatedFilterSet
 from utilities.filters import NameSlugSearchFilterSet, NumericInFilter, TagFilter
 from .models import Secret, SecretRole
 
 
-class SecretRoleFilter(NameSlugSearchFilterSet):
+__all__ = (
+    'SecretFilterSet',
+    'SecretRoleFilterSet',
+)
+
+
+class SecretRoleFilterSet(NameSlugSearchFilterSet):
 
     class Meta:
         model = SecretRole
         fields = ['id', 'name', 'slug']
 
 
-class SecretFilter(CustomFieldFilterSet):
+class SecretFilterSet(CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'

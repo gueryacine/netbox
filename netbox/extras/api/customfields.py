@@ -5,7 +5,7 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from extras.constants import CF_TYPE_BOOLEAN, CF_TYPE_DATE, CF_TYPE_INTEGER, CF_TYPE_SELECT
+from extras.choices import *
 from extras.models import CustomField, CustomFieldChoice, CustomFieldValue
 from utilities.api import ValidatedModelSerializer
 
@@ -22,7 +22,9 @@ class CustomFieldsSerializer(serializers.BaseSerializer):
     def to_internal_value(self, data):
 
         content_type = ContentType.objects.get_for_model(self.parent.Meta.model)
-        custom_fields = {field.name: field for field in CustomField.objects.filter(obj_type=content_type)}
+        custom_fields = {
+            field.name: field for field in CustomField.objects.filter(obj_type=content_type)
+        }
 
         for field_name, value in data.items():
 
@@ -37,7 +39,7 @@ class CustomFieldsSerializer(serializers.BaseSerializer):
             if value not in [None, '']:
 
                 # Validate integer
-                if cf.type == CF_TYPE_INTEGER:
+                if cf.type == CustomFieldTypeChoices.TYPE_INTEGER:
                     try:
                         int(value)
                     except ValueError:
@@ -46,13 +48,13 @@ class CustomFieldsSerializer(serializers.BaseSerializer):
                         )
 
                 # Validate boolean
-                if cf.type == CF_TYPE_BOOLEAN and value not in [True, False, 1, 0]:
+                if cf.type == CustomFieldTypeChoices.TYPE_BOOLEAN and value not in [True, False, 1, 0]:
                     raise ValidationError(
                         "Invalid value for boolean field {}: {}".format(field_name, value)
                     )
 
                 # Validate date
-                if cf.type == CF_TYPE_DATE:
+                if cf.type == CustomFieldTypeChoices.TYPE_DATE:
                     try:
                         datetime.strptime(value, '%Y-%m-%d')
                     except ValueError:
@@ -61,7 +63,7 @@ class CustomFieldsSerializer(serializers.BaseSerializer):
                         )
 
                 # Validate selected choice
-                if cf.type == CF_TYPE_SELECT:
+                if cf.type == CustomFieldTypeChoices.TYPE_SELECT:
                     try:
                         value = int(value)
                     except ValueError:
@@ -97,21 +99,21 @@ class CustomFieldModelSerializer(ValidatedModelSerializer):
     def __init__(self, *args, **kwargs):
 
         def _populate_custom_fields(instance, fields):
-            custom_fields = {f.name: None for f in fields}
-            for cfv in instance.custom_field_values.all():
-                if cfv.field.type == CF_TYPE_SELECT:
-                    custom_fields[cfv.field.name] = CustomFieldChoiceSerializer(cfv.value).data
+            instance.custom_fields = {}
+            for field in fields:
+                value = instance.cf.get(field.name)
+                if field.type == CustomFieldTypeChoices.TYPE_SELECT and value is not None:
+                    instance.custom_fields[field.name] = CustomFieldChoiceSerializer(value).data
                 else:
-                    custom_fields[cfv.field.name] = cfv.value
-            instance.custom_fields = custom_fields
+                    instance.custom_fields[field.name] = value
 
         super().__init__(*args, **kwargs)
 
-        if self.instance is not None:
+        # Retrieve the set of CustomFields which apply to this type of object
+        content_type = ContentType.objects.get_for_model(self.Meta.model)
+        fields = CustomField.objects.filter(obj_type=content_type)
 
-            # Retrieve the set of CustomFields which apply to this type of object
-            content_type = ContentType.objects.get_for_model(self.Meta.model)
-            fields = CustomField.objects.filter(obj_type=content_type)
+        if self.instance is not None:
 
             # Populate CustomFieldValues for each instance from database
             try:
@@ -119,6 +121,26 @@ class CustomFieldModelSerializer(ValidatedModelSerializer):
                     _populate_custom_fields(obj, fields)
             except TypeError:
                 _populate_custom_fields(self.instance, fields)
+
+        else:
+
+            if not hasattr(self, 'initial_data'):
+                self.initial_data = {}
+
+            # Populate default values
+            if fields and 'custom_fields' not in self.initial_data:
+                self.initial_data['custom_fields'] = {}
+
+            # Populate initial data using custom field default values
+            for field in fields:
+                if field.name not in self.initial_data['custom_fields'] and field.default:
+                    if field.type == CustomFieldTypeChoices.TYPE_SELECT:
+                        field_value = field.choices.get(value=field.default).pk
+                    elif field.type == CustomFieldTypeChoices.TYPE_BOOLEAN:
+                        field_value = bool(field.default)
+                    else:
+                        field_value = field.default
+                    self.initial_data['custom_fields'][field.name] = field_value
 
     def _save_custom_fields(self, instance, custom_fields):
         content_type = ContentType.objects.get_for_model(self.Meta.model)

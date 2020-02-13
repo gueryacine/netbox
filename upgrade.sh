@@ -20,6 +20,17 @@ COMMAND="${PIP} install -r requirements.txt --upgrade"
 echo "Updating required Python packages ($COMMAND)..."
 eval $COMMAND
 
+# Validate Python dependencies
+COMMAND="${PIP} check"
+echo "Validating Python dependencies ($COMMAND)..."
+eval $COMMAND || (
+  echo "******** PLEASE FIX THE DEPENDENCIES BEFORE CONTINUING ********"
+  echo "* Manually install newer version(s) of the highlighted packages"
+  echo "* so that 'pip3 check' passes. For more information see:"
+  echo "* https://github.com/pypa/pip/issues/988"
+  exit 1
+)
+
 # Apply any database migrations
 COMMAND="${PYTHON} netbox/manage.py migrate"
 echo "Applying database migrations ($COMMAND)..."
@@ -33,4 +44,9 @@ eval $COMMAND
 # Collect static files
 COMMAND="${PYTHON} netbox/manage.py collectstatic --no-input"
 echo "Collecting static files ($COMMAND)..."
+eval $COMMAND
+
+# Clear all cached data
+COMMAND="${PYTHON} netbox/manage.py invalidate all"
+echo "Clearing cache data ($COMMAND)..."
 eval $COMMAND

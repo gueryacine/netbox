@@ -6,7 +6,8 @@ import requests
 from django_rq import job
 from rest_framework.utils.encoders import JSONEncoder
 
-from extras.constants import WEBHOOK_CT_JSON, WEBHOOK_CT_X_WWW_FORM_ENCODED, OBJECTCHANGE_ACTION_CHOICES
+from .choices import ObjectChangeActionChoices
+from .constants import *
 
 
 @job('default')
@@ -15,7 +16,7 @@ def process_webhook(webhook, data, model_name, event, timestamp, username, reque
     Make a POST request to the defined Webhook
     """
     payload = {
-        'event': dict(OBJECTCHANGE_ACTION_CHOICES)[event].lower(),
+        'event': dict(ObjectChangeActionChoices)[event].lower(),
         'timestamp': timestamp,
         'model': model_name,
         'username': username,
@@ -25,6 +26,9 @@ def process_webhook(webhook, data, model_name, event, timestamp, username, reque
     headers = {
         'Content-Type': webhook.get_http_content_type_display(),
     }
+    if webhook.additional_headers:
+        headers.update(webhook.additional_headers)
+
     params = {
         'method': 'POST',
         'url': webhook.payload_url,
@@ -49,11 +53,13 @@ def process_webhook(webhook, data, model_name, event, timestamp, username, reque
 
     with requests.Session() as session:
         session.verify = webhook.ssl_verification
+        if webhook.ca_file_path:
+            session.verify = webhook.ca_file_path
         response = session.send(prepared_request)
 
     if response.status_code >= 200 and response.status_code <= 299:
         return 'Status {} returned, webhook successfully processed.'.format(response.status_code)
     else:
         raise requests.exceptions.RequestException(
-            "Status {} returned, webhook FAILED to process.".format(response.status_code)
+            "Status {} returned with content '{}', webhook FAILED to process.".format(response.status_code, response.content)
         )

@@ -4,16 +4,31 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from netaddr.core import AddrFormatError
 
-from dcim.models import Site, Device, Interface
-from extras.filters import CustomFieldFilterSet
-from tenancy.filtersets import TenancyFilterSet
-from utilities.filters import NameSlugSearchFilterSet, NumericInFilter, TagFilter
+from dcim.models import Device, Interface, Region, Site
+from extras.filters import CustomFieldFilterSet, CreatedUpdatedFilterSet
+from tenancy.filters import TenancyFilterSet
+from utilities.filters import (
+    MultiValueCharFilter, NameSlugSearchFilterSet, NumericInFilter, TagFilter, TreeNodeMultipleChoiceFilter,
+)
 from virtualization.models import VirtualMachine
-from .constants import IPADDRESS_ROLE_CHOICES, IPADDRESS_STATUS_CHOICES, PREFIX_STATUS_CHOICES, VLAN_STATUS_CHOICES, PORT_STATUS_CHOICES, PORT_TYPES_CHOICES
+from .choices import *
 from .models import Aggregate, IPAddress, Prefix, RIR, Role, Service, VLAN, VLANGroup, VRF, PortTemplate, PortTemplateGroup
 
 
-class VRFFilter(TenancyFilterSet, CustomFieldFilterSet):
+__all__ = (
+    'AggregateFilterSet',
+    'IPAddressFilterSet',
+    'PrefixFilterSet',
+    'RIRFilterSet',
+    'RoleFilterSet',
+    'ServiceFilterSet',
+    'VLANFilterSet',
+    'VLANGroupFilterSet',
+    'VRFFilterSet',
+)
+
+
+class VRFFilterSet(TenancyFilterSet, CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -38,7 +53,7 @@ class VRFFilter(TenancyFilterSet, CustomFieldFilterSet):
         fields = ['name', 'rd', 'enforce_unique']
 
 
-class RIRFilter(NameSlugSearchFilterSet):
+class RIRFilterSet(NameSlugSearchFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -49,7 +64,7 @@ class RIRFilter(NameSlugSearchFilterSet):
         fields = ['name', 'slug', 'is_private']
 
 
-class AggregateFilter(CustomFieldFilterSet):
+class AggregateFilterSet(CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -99,7 +114,7 @@ class AggregateFilter(CustomFieldFilterSet):
             return queryset.none()
 
 
-class RoleFilter(NameSlugSearchFilterSet):
+class RoleFilterSet(NameSlugSearchFilterSet):
     q = django_filters.CharFilter(
         method='search',
         label='Search',
@@ -110,7 +125,7 @@ class RoleFilter(NameSlugSearchFilterSet):
         fields = ['id', 'name', 'slug']
 
 
-class PrefixFilter(TenancyFilterSet, CustomFieldFilterSet):
+class PrefixFilterSet(TenancyFilterSet, CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -149,6 +164,17 @@ class PrefixFilter(TenancyFilterSet, CustomFieldFilterSet):
         to_field_name='rd',
         label='VRF (RD)',
     )
+    region_id = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        label='Region (ID)',
+    )
+    region = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        to_field_name='slug',
+        label='Region (slug)',
+    )
     site_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Site.objects.all(),
         label='Site (ID)',
@@ -184,7 +210,7 @@ class PrefixFilter(TenancyFilterSet, CustomFieldFilterSet):
         label='Role (slug)',
     )
     status = django_filters.MultipleChoiceFilter(
-        choices=PREFIX_STATUS_CHOICES,
+        choices=PrefixStatusChoices,
         null_value=None
     )
     tag = TagFilter()
@@ -253,7 +279,7 @@ class PrefixFilter(TenancyFilterSet, CustomFieldFilterSet):
         return queryset.filter(prefix__net_mask_length=value)
 
 
-class IPAddressFilter(TenancyFilterSet, CustomFieldFilterSet):
+class IPAddressFilterSet(TenancyFilterSet, CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -266,7 +292,7 @@ class IPAddressFilter(TenancyFilterSet, CustomFieldFilterSet):
         method='search_by_parent',
         label='Parent prefix',
     )
-    address = django_filters.CharFilter(
+    address = MultiValueCharFilter(
         method='filter_address',
         label='Address',
     )
@@ -315,12 +341,16 @@ class IPAddressFilter(TenancyFilterSet, CustomFieldFilterSet):
         queryset=Interface.objects.all(),
         label='Interface (ID)',
     )
+    assigned_to_interface = django_filters.BooleanFilter(
+        method='_assigned_to_interface',
+        label='Is assigned to an interface',
+    )
     status = django_filters.MultipleChoiceFilter(
-        choices=IPADDRESS_STATUS_CHOICES,
+        choices=IPAddressStatusChoices,
         null_value=None
     )
     role = django_filters.MultipleChoiceFilter(
-        choices=IPADDRESS_ROLE_CHOICES
+        choices=IPAddressRoleChoices
     )
     tag = TagFilter()
 
@@ -349,13 +379,8 @@ class IPAddressFilter(TenancyFilterSet, CustomFieldFilterSet):
             return queryset.none()
 
     def filter_address(self, queryset, name, value):
-        if not value.strip():
-            return queryset
         try:
-            # Match address and subnet mask
-            if '/' in value:
-                return queryset.filter(address=value)
-            return queryset.filter(address__net_host=value)
+            return queryset.filter(address__net_in=value)
         except ValidationError:
             return queryset.none()
 
@@ -372,8 +397,22 @@ class IPAddressFilter(TenancyFilterSet, CustomFieldFilterSet):
         except Device.DoesNotExist:
             return queryset.none()
 
+    def _assigned_to_interface(self, queryset, name, value):
+        return queryset.exclude(interface__isnull=value)
 
-class VLANGroupFilter(NameSlugSearchFilterSet):
+
+class VLANGroupFilterSet(NameSlugSearchFilterSet):
+    region_id = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        label='Region (ID)',
+    )
+    region = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        to_field_name='slug',
+        label='Region (slug)',
+    )
     site_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Site.objects.all(),
         label='Site (ID)',
@@ -390,7 +429,7 @@ class VLANGroupFilter(NameSlugSearchFilterSet):
         fields = ['id', 'name', 'slug']
 
 
-class VLANFilter(TenancyFilterSet, CustomFieldFilterSet):
+class VLANFilterSet(TenancyFilterSet, CustomFieldFilterSet, CreatedUpdatedFilterSet):
     id__in = NumericInFilter(
         field_name='id',
         lookup_expr='in'
@@ -398,6 +437,17 @@ class VLANFilter(TenancyFilterSet, CustomFieldFilterSet):
     q = django_filters.CharFilter(
         method='search',
         label='Search',
+    )
+    region_id = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        label='Region (ID)',
+    )
+    region = TreeNodeMultipleChoiceFilter(
+        queryset=Region.objects.all(),
+        field_name='site__region__in',
+        to_field_name='slug',
+        label='Region (slug)',
     )
     site_id = django_filters.ModelMultipleChoiceFilter(
         queryset=Site.objects.all(),
@@ -430,7 +480,7 @@ class VLANFilter(TenancyFilterSet, CustomFieldFilterSet):
         label='Role (slug)',
     )
     status = django_filters.MultipleChoiceFilter(
-        choices=VLAN_STATUS_CHOICES,
+        choices=VLANStatusChoices,
         null_value=None
     )
     tag = TagFilter()
@@ -450,150 +500,7 @@ class VLANFilter(TenancyFilterSet, CustomFieldFilterSet):
         return queryset.filter(qs_filter)
 
 
-class PortTemplatesGroupFilter(NameSlugSearchFilterSet):
-    site_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Site.objects.all(), label='Site (ID)'
-    )
-    site = django_filters.ModelMultipleChoiceFilter(
-        field_name='site__slug',
-        queryset=Site.objects.all(),
-        to_field_name='slug',
-        label='Site (slug)',
-    )
-
-    class Meta:
-        model = PortTemplateGroup
-        fields = ['name', 'slug']
-
-
-class PortTemplatesFilter(CustomFieldFilterSet, django_filters.FilterSet):
-    id__in = NumericInFilter(field_name='id', lookup_expr='in')
-    q = django_filters.CharFilter(method='search', label='Search')
-    site_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Site.objects.all(), label='Site (ID)'
-    )
-    site = django_filters.ModelMultipleChoiceFilter(
-        field_name='site__slug',
-        queryset=Site.objects.all(),
-        to_field_name='slug',
-        label='Site (slug)',
-    )
-    group_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=PortTemplateGroup.objects.all(), label='Group (ID)'
-    )
-    group = django_filters.ModelMultipleChoiceFilter(
-        field_name='group__slug',
-        queryset=PortTemplateGroup.objects.all(),
-        to_field_name='slug',
-        label='Group',
-    )
-
-    role_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Role.objects.all(), label='Role (ID)'
-    )
-    role = django_filters.ModelMultipleChoiceFilter(
-        field_name='role__slug',
-        queryset=Role.objects.all(),
-        to_field_name='slug',
-        label='Role (slug)',
-    )
-    status = (
-        django_filters.MultipleChoiceFilter(
-            choices=PORT_STATUS_CHOICES, null_value=None
-        ),
-    )
-    types = django_filters.MultipleChoiceFilter(
-        choices=PORT_TYPES_CHOICES, null_value=None
-    )
-    tag = TagFilter()
-
-    class Meta:
-        model = PortTemplate
-        fields = ['name']
-
-    def search(self, queryset, name, value):
-        if not value.strip():
-            return queryset
-        qs_filter = Q(name__icontains=value) | Q(description__icontains=value)
-        try:
-            qs_filter |= Q(vid=int(value.strip()))
-        except ValueError:
-            pass
-        return queryset.filter(qs_filter)
-
-
-class PortTemplatesGroupFilter(NameSlugSearchFilterSet):
-    site_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Site.objects.all(), label='Site (ID)'
-    )
-    site = django_filters.ModelMultipleChoiceFilter(
-        field_name='site__slug',
-        queryset=Site.objects.all(),
-        to_field_name='slug',
-        label='Site (slug)',
-    )
-
-    class Meta:
-        model = PortTemplateGroup
-        fields = ['name', 'slug']
-
-
-class PortTemplatesFilter(CustomFieldFilterSet, django_filters.FilterSet):
-    id__in = NumericInFilter(field_name='id', lookup_expr='in')
-    q = django_filters.CharFilter(method='search', label='Search')
-    site_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Site.objects.all(), label='Site (ID)'
-    )
-    site = django_filters.ModelMultipleChoiceFilter(
-        field_name='site__slug',
-        queryset=Site.objects.all(),
-        to_field_name='slug',
-        label='Site (slug)',
-    )
-    group_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=PortTemplateGroup.objects.all(), label='Group (ID)'
-    )
-    group = django_filters.ModelMultipleChoiceFilter(
-        field_name='group__slug',
-        queryset=PortTemplateGroup.objects.all(),
-        to_field_name='slug',
-        label='Group',
-    )
-    role_id = django_filters.ModelMultipleChoiceFilter(
-        queryset=Role.objects.all(), label='Role (ID)'
-    )
-    role = django_filters.ModelMultipleChoiceFilter(
-        field_name='role__slug',
-        queryset=Role.objects.all(),
-        to_field_name='slug',
-        label='Role (slug)',
-    )
-    status = (
-        django_filters.MultipleChoiceFilter(
-            choices=PORT_STATUS_CHOICES, null_value=None
-        ),
-    )
-    types = django_filters.MultipleChoiceFilter(
-        choices=PORT_TYPES_CHOICES, null_value=None
-    )
-    tag = TagFilter()
-
-    class Meta:
-        model = PortTemplate
-        fields = ['name']
-
-    def search(self, queryset, name, value):
-        if not value.strip():
-            return queryset
-        qs_filter = Q(name__icontains=value) | Q(description__icontains=value)
-        try:
-            qs_filter |= Q(vid=int(value.strip()))
-        except ValueError:
-            pass
-        return queryset.filter(qs_filter)
-
-
-class ServiceFilter(django_filters.FilterSet):
+class ServiceFilterSet(CreatedUpdatedFilterSet):
     q = django_filters.CharFilter(
         method='search',
         label='Search',

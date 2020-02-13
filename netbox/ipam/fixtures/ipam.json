@@ -41,7 +41,7 @@
         "vrf": null,
         "vlan": null,
         "port_template": null,
-        "status": 1,
+        "status": "active",
         "role": 1,
         "description": ""
     }
@@ -58,7 +58,7 @@
         "vrf": null,
         "vlan": null,
         "port_template": null,
-        "status": 1,
+        "status": "active",
         "role": 1,
         "description": ""
     }
@@ -324,7 +324,7 @@
         "site": 1,
         "vid": 999,
         "name": "TEST",
-        "status": 1,
+        "status": "active",
         "role": 1
     }
 },

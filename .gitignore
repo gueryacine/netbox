@@ -149,5 +149,9 @@ dmypy.json
 fabfile.py
 *.swp
 gunicorn_config.py
+gunicorn.py
+netbox.log
+netbox.pid
 .DS_Store
 .vscode
+.coverage

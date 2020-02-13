@@ -33,6 +33,14 @@ Update the following static libraries to their most recent stable release:
 * jQuery
 * jQuery UI
 
+## Squash Schema Migrations
+
+Database schema migrations should be squashed for each new minor release. See the [squashing guide](squashing-migrations.md) for the detailed process.
+
+## Create a new Release Notes Page
+
+Create a file at `/docs/release-notes/X.Y.md` to establish the release notes for the new release. Add the file to the table of contents within `mkdocs.yml`.
+
 ## Manually Perform a New Install
 
 Create a new installation of NetBox by following [the current documentation](http://netbox.readthedocs.io/en/latest/). This should be a manual process, so that issues with the documentation can be identified and corrected.
@@ -51,7 +59,7 @@ Ensure that continuous integration testing on the `develop` branch is completing
 
 ## Update Version and Changelog
 
-Update the `VERSION` constant in `settings.py` to the new release version and add the current date to the release notes in `CHANGELOG.md`.
+Update the `VERSION` constant in `settings.py` to the new release version and annotate the current data in the release notes for the new version.
 
 ## Submit a Pull Request
 
